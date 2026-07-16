@@ -1,20 +1,12 @@
-# Planejamento de Compras — versão final completa
+# Planejamento de Compras — versão final com filtro de tamanhos
 
-Esta versão já contém os arquivos finais:
+Além dos históricos, estoques, pendentes e catálogos já incorporados, esta versão possui a tela **Estoque por tamanho**.
 
-- Histórico de vendas da Cianê.
-- Histórico de vendas da Esplanada.
-- Histórico de vendas da Itape.
-- Histórico de vendas da Tatuí.
-- Estoque atual das quatro lojas em 15/07/2026.
-- Produtos pendentes consolidados.
-- Catálogo completo de produtos e catálogo de correlação.
+É possível filtrar por:
+- Loja;
+- Tamanho;
+- Código;
+- Nome do produto.
 
-O sistema abre pronto para análise. Os uploads permanecem disponíveis apenas para futuras atualizações.
-
-Importante:
-- Histórico é lido em unidades vendidas.
-- A coluna financeira Venda total não é usada.
-- Estoque é lido pela coluna Total.
-- Cada loja é calculada separadamente.
-- A visão Todas juntas soma as recomendações individuais.
+A consulta utiliza diretamente as grades dos quatro relatórios finais de estoque.
+A recomendação de compra continua calculada por modelo e cor; o filtro de tamanho é uma consulta operacional complementar.

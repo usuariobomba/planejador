@@ -44,6 +44,7 @@
     <div class="nav">
       <button class="active" data-view="dashboard">▦ Dashboard</button>
       <button data-view="produtos">▤ Produtos e recomendação</button>
+      <button data-view="tamanhos">⌗ Estoque por tamanho</button>
       <button data-view="importar">⇧ Importar planilhas</button>
     </div>
     <div class="side-note"><b>Base limpa para testes</b><br>Importe o histórico, o estoque atual e os produtos a receber de cada loja.</div>
@@ -87,6 +88,69 @@
       </div>
     </section>
 
+
+    <section id="tamanhos" class="view">
+      <div class="notice">
+        Consulte o estoque físico por tamanho. Essa tela não altera a recomendação de compra, que continua calculada no nível de modelo e cor.
+      </div>
+
+      <div class="settings card panel">
+        <div class="field">
+          <label>Loja</label>
+          <select id="sizeStore">
+            <option value="todas">Todas as lojas</option>
+            <option value="ciane">Cianê</option>
+            <option value="esplanada">Esplanada</option>
+            <option value="itape">Itape</option>
+            <option value="tatui">Tatuí</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Tamanho</label>
+          <select id="sizeFilter">
+            <option value="">Todos os tamanhos</option>
+          </select>
+        </div>
+
+        <div class="field" style="grid-column:span 2">
+          <label>Produto ou código</label>
+          <input id="sizeSearch" placeholder="Ex.: Top Preto, Brasil Logo ou código...">
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="card kpi"><span>Unidades encontradas</span><strong id="sizeUnits">0</strong><small>Estoque no filtro selecionado</small></div>
+        <div class="card kpi"><span>Produtos</span><strong id="sizeProducts">0</strong><small>Códigos com estoque</small></div>
+        <div class="card kpi"><span>Lojas com estoque</span><strong id="sizeStores">0</strong><small>Unidades atendidas</small></div>
+        <div class="card kpi"><span>Tamanhos disponíveis</span><strong id="sizeCount">0</strong><small>Grades encontradas</small></div>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-head">
+          <div>
+            <b>Disponibilidade por tamanho</b>
+            <div class="footer-note" id="sizeRowCount"></div>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Loja</th>
+                <th>Código</th>
+                <th>Produto</th>
+                <th>Tamanho</th>
+                <th>Estoque</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody id="sizeRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section id="importar" class="view">
       <div class="notice"><b>Formato recomendado:</b> uma coluna de código do produto e colunas de quantidade. Selecione a loja para histórico e estoque. Os pendentes já estão incorporados e também podem ser substituídos por um único arquivo consolidado.</div>
       <div class="card panel" style="margin-bottom:16px"><div class="field" style="max-width:320px"><label>Loja de destino da importação</label><select id="lojaImportacao"><option value="ciane">Cianê</option><option value="esplanada">Esplanada</option><option value="itape">Itape</option><option value="tatui">Tatuí</option></select></div></div>
@@ -105,6 +169,7 @@
 </div>
 <script src="historico.js"></script>
 <script src="catalogos.js"></script>
+<script src="estoque_tamanhos.js"></script>
 <script>
 const initialData = window.HISTORICO_INICIAL || [];
 let data = JSON.parse(localStorage.getItem("planejamentoComprasData") || "null") || structuredClone(initialData);
@@ -482,9 +547,72 @@ function exportCSV(){
   const csv=[headers.join(";"),...rows.map(r=>[r.loja,r.codigo,r.descricao,r.linha,r.tipo,r.hist,r.demand,r.estoque,r.aReceber,r.buy].map(esc).join(";"))].join("\n");
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="recomendacao_de_compra.csv";a.click();URL.revokeObjectURL(a.href)
 }
-document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button,.view").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelector("#"+b.dataset.view).classList.add("active");const titles={dashboard:["Visão geral","Indicadores principais e recomendação de compras."],produtos:["Produtos e recomendação","Detalhamento auditável por código de produto."],importar:["Importar planilhas","Importe histórico, estoque atual e produtos a receber."]};document.querySelector("#pageTitle").textContent=titles[b.dataset.view][0];document.querySelector("#pageSubtitle").textContent=titles[b.dataset.view][1]});
+
+const SIZE_STOCK=window.SIZE_STOCK||[];
+
+function populateSizeFilter(){
+  const select=document.querySelector("#sizeFilter");
+  if(!select)return;
+
+  const sizes=[...new Set(SIZE_STOCK.map(item=>item.size))]
+    .sort((a,b)=>a.localeCompare(b,"pt-BR",{numeric:true}));
+
+  select.innerHTML='<option value="">Todos os tamanhos</option>'+
+    sizes.map(size=>`<option value="${size}">${size}</option>`).join("");
+}
+
+function renderSizeStock(){
+  const store=document.querySelector("#sizeStore")?.value||"todas";
+  const size=document.querySelector("#sizeFilter")?.value||"";
+  const query=norm(document.querySelector("#sizeSearch")?.value||"");
+
+  const filtered=SIZE_STOCK.filter(item=>{
+    if(store!=="todas" && item.store!==store)return false;
+    if(size && item.size!==size)return false;
+    if(query && !norm(`${item.code} ${item.description} ${item.size}`).includes(query))return false;
+    return item.quantity!==0;
+  }).sort((a,b)=>{
+    const storeOrder=STORES.indexOf(a.store)-STORES.indexOf(b.store);
+    if(storeOrder!==0)return storeOrder;
+    const productOrder=a.description.localeCompare(b.description,"pt-BR");
+    if(productOrder!==0)return productOrder;
+    return a.size.localeCompare(b.size,"pt-BR",{numeric:true});
+  });
+
+  const totalUnits=filtered.reduce((sum,item)=>sum+num(item.quantity),0);
+  const productCount=new Set(filtered.map(item=>`${item.store}|${item.code}`)).size;
+  const storesCount=new Set(filtered.map(item=>item.store)).size;
+  const sizesCount=new Set(filtered.map(item=>item.size)).size;
+
+  document.querySelector("#sizeUnits").textContent=nf.format(totalUnits);
+  document.querySelector("#sizeProducts").textContent=nf.format(productCount);
+  document.querySelector("#sizeStores").textContent=nf.format(storesCount);
+  document.querySelector("#sizeCount").textContent=nf.format(sizesCount);
+  document.querySelector("#sizeRowCount").textContent=`${nf.format(filtered.length)} registros exibidos`;
+
+  document.querySelector("#sizeRows").innerHTML=filtered.map(item=>{
+    const cls=item.quantity>3?"good":item.quantity>0?"warn":"bad";
+    const text=item.quantity>3?"Disponível":item.quantity>0?"Estoque baixo":"Sem estoque";
+    return `<tr>
+      <td>${STORE_NAMES[item.store]}</td>
+      <td>${item.code}</td>
+      <td class="desc" title="${String(item.description).replace(/"/g,"&quot;")}">${item.description}</td>
+      <td><b>${item.size}</b></td>
+      <td><b>${nf.format(item.quantity)}</b></td>
+      <td><span class="badge ${cls}">${text}</span></td>
+    </tr>`;
+  }).join("")||'<tr><td colspan="6" class="empty">Nenhum estoque encontrado para os filtros selecionados.</td></tr>';
+}
+
+
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button,.view").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelector("#"+b.dataset.view).classList.add("active");const titles={dashboard:["Visão geral","Indicadores principais e recomendação de compras."],produtos:["Produtos e recomendação","Detalhamento auditável por código de produto."],tamanhos:["Estoque por tamanho","Consulte a disponibilidade exata por loja, produto e grade."],importar:["Importar planilhas","Importe histórico, estoque atual e produtos a receber."]};document.querySelector("#pageTitle").textContent=titles[b.dataset.view][0];document.querySelector("#pageSubtitle").textContent=titles[b.dataset.view][1];if(b.dataset.view==="tamanhos")renderSizeStock()});
 ["lojaSelecionada","crescimento","seguranca","multiplo"].forEach(id=>document.querySelector("#"+id).addEventListener("input",render));
 document.querySelector("#searchInput").addEventListener("input",()=>renderTable(computed()));
+["sizeStore","sizeFilter","sizeSearch"].forEach(id=>{
+  document.querySelector("#"+id)?.addEventListener("input",renderSizeStock);
+});
+populateSizeFilter();
+renderSizeStock();
 document.querySelector("#exportBtn").onclick=exportCSV;
 document.querySelector("#resetBtn").onclick=()=>{if(confirm("Restaurar os estoques e pendentes incorporados e apagar as importações locais?")){data=structuredClone(initialData);ensureStoreData();applyPreloadedPending();applyPreloadedStock();applyPreloadedHistory();localStorage.removeItem("planejamentoComprasData");localStorage.setItem("planejamentoComprasVersion",APP_DATA_VERSION);render()}};
 document.querySelector("#historyFile").onchange=e=>e.target.files[0]&&importFile(e.target.files[0],"history",document.querySelector("#historyStatus"));

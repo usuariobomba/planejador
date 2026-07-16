@@ -1,0 +1,59 @@
+{
+  "stores": {
+    "ciane": {
+      "product_rows": 295,
+      "nonzero_size_rows": 689,
+      "units_from_sizes": 7335
+    },
+    "esplanada": {
+      "product_rows": 307,
+      "nonzero_size_rows": 713,
+      "units_from_sizes": 8240
+    },
+    "itape": {
+      "product_rows": 320,
+      "nonzero_size_rows": 894,
+      "units_from_sizes": 6303
+    },
+    "tatui": {
+      "product_rows": 376,
+      "nonzero_size_rows": 848,
+      "units_from_sizes": 6715
+    }
+  },
+  "size_records": 3144,
+  "distinct_sizes": [
+    "17/18",
+    "19/20",
+    "20",
+    "21",
+    "21/22",
+    "22",
+    "23/24",
+    "25/26",
+    "27/28",
+    "29/30",
+    "31/32",
+    "33",
+    "33/34",
+    "34",
+    "35",
+    "35/36",
+    "36",
+    "37",
+    "37/38",
+    "38",
+    "39",
+    "39/40",
+    "40",
+    "41",
+    "41/42",
+    "42",
+    "43",
+    "43/44",
+    "45/46",
+    "47/48",
+    "Único"
+  ],
+  "total_units": 28593
+}
