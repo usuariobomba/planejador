@@ -1,0 +1,23 @@
+{
+  "data_estoque": "15/07/2026",
+  "lojas": {
+    "Cianê": {
+      "products": 295,
+      "units": 7335
+    },
+    "Esplanada": {
+      "products": 307,
+      "units": 8240
+    },
+    "Itape": {
+      "products": 320,
+      "units": 6303
+    },
+    "Tatuí": {
+      "products": 376,
+      "units": 6715
+    }
+  },
+  "total_produtos_por_loja": 1298,
+  "total_unidades": 28593
+}

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Planejamento Inteligente de Compras</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f5f7fb;--card:#fff;--text:#162033;--muted:#667085;--line:#e5e9f0;
+      --primary:#1769e0;--primary2:#0b4aa2;--good:#15803d;--warn:#b45309;--bad:#b42318;
+      --shadow:0 10px 28px rgba(23,43,77,.08);--radius:18px
+    }
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    button,input,select{font:inherit}.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+    aside{background:#0e1b33;color:#fff;padding:24px 18px;position:sticky;top:0;height:100vh}
+    .brand{display:flex;align-items:center;gap:12px;margin:0 8px 30px}.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#4e9cff,#1769e0);display:grid;place-items:center;font-weight:800}
+    .brand h1{font-size:15px;margin:0}.brand small{color:#9fb0ca}.nav button{width:100%;border:0;background:transparent;color:#b7c4d8;text-align:left;padding:13px 14px;border-radius:11px;margin:4px 0;cursor:pointer;font-weight:600}
+    .nav button.active,.nav button:hover{background:#182b4d;color:#fff}.side-note{position:absolute;bottom:22px;left:18px;right:18px;background:#152744;border:1px solid #29405f;border-radius:14px;padding:14px;font-size:12px;color:#aebbd0;line-height:1.5}
+    main{padding:28px;min-width:0}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}.topbar h2{margin:0;font-size:25px}.topbar p{margin:5px 0 0;color:var(--muted);font-size:14px}
+    .actions{display:flex;gap:9px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:11px;font-weight:700;cursor:pointer;color:var(--text)}.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn:hover{transform:translateY(-1px)}
+    .view{display:none}.view.active{display:block}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .kpi{padding:19px}.kpi span{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}.kpi strong{display:block;font-size:26px;margin-top:8px}.kpi small{display:block;margin-top:7px;color:var(--muted)}
+    .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}.panel{padding:19px}.panel h3{margin:0 0 16px;font-size:16px}.chart-wrap{height:300px}
+    .settings{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:16px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;font-weight:700;color:var(--muted)}.field input,.field select{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}
+    .table-card{overflow:hidden}.table-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);gap:12px}.search{width:min(360px,100%);border:1px solid var(--line);border-radius:10px;padding:10px}
+    .table-scroll{overflow:auto;max-height:610px}table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}th,td{padding:11px 12px;border-bottom:1px solid #edf0f4;text-align:right}th{position:sticky;top:0;background:#f8fafc;z-index:1;color:#475467;font-size:11px;text-transform:uppercase}th:nth-child(1),th:nth-child(2),td:nth-child(1),td:nth-child(2){text-align:left}.desc{max-width:340px;overflow:hidden;text-overflow:ellipsis}
+    .badge{padding:4px 8px;border-radius:999px;font-weight:700}.badge.good{background:#dcfce7;color:#166534}.badge.warn{background:#fef3c7;color:#92400e}.badge.bad{background:#fee2e2;color:#991b1b}
+    .import-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.upload{padding:22px}.upload h3{margin-top:0}.drop{border:2px dashed #cbd5e1;border-radius:14px;padding:28px 14px;text-align:center;color:var(--muted);cursor:pointer}.drop:hover{border-color:var(--primary);background:#f5f9ff}.upload input{display:none}.statusline{margin-top:12px;font-size:12px;color:var(--muted)}
+    .notice{padding:14px 16px;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:13px;margin-bottom:16px;border:1px solid #bfdbfe}
+    .empty{padding:60px;text-align:center;color:var(--muted)}.footer-note{font-size:12px;color:var(--muted);margin-top:12px}
+    @media(max-width:1050px){.app{grid-template-columns:1fr}aside{height:auto;position:relative;padding:12px}.brand{margin:0 4px 12px}.nav{display:flex;overflow:auto}.nav button{min-width:max-content}.side-note{display:none}.kpis{grid-template-columns:repeat(2,1fr)}.grid2,.import-grid{grid-template-columns:1fr}.settings{grid-template-columns:repeat(2,1fr)}main{padding:18px}}
+    @media(max-width:620px){.kpis,.settings{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column}.actions{width:100%}.actions .btn{flex:1}.table-head{align-items:stretch;flex-direction:column}.search{width:100%}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><div class="logo">PC</div><div><h1>Planejamento de Compras</h1><small>Histórico, estoque e previsão</small></div></div>
+    <div class="nav">
+      <button class="active" data-view="dashboard">▦ Dashboard</button>
+      <button data-view="produtos">▤ Produtos e recomendação</button>
+      <button data-view="importar">⇧ Importar planilhas</button>
+    </div>
+    <div class="side-note"><b>Base limpa para testes</b><br>Importe o histórico, o estoque atual e os produtos a receber de cada loja.</div>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div><h2 id="pageTitle">Visão geral</h2><p id="pageSubtitle">Indicadores principais e recomendação de compras.</p></div>
+      <div class="actions"><button class="btn" id="resetBtn">Limpar dados</button><button class="btn primary" id="exportBtn">Exportar recomendação</button></div>
+    </div>
+
+    <section id="dashboard" class="view active">
+      <div class="notice">A base histórica final já está carregada. Os 2.712 produtos pendentes já estão carregados e distribuídos entre as quatro lojas. Importe histórico e estoque para testar.</div>
+      <div class="settings card panel">
+        <div class="field"><label>Loja analisada</label><select id="lojaSelecionada"><option value="todas">Todas juntas</option><option value="ciane">Cianê</option><option value="esplanada">Esplanada</option><option value="itape">Itape</option><option value="tatui">Tatuí</option></select></div>
+        <div class="field"><label>Crescimento esperado (%)</label><input id="crescimento" type="number" min="-100" step="1" value="0"></div>
+        <div class="field"><label>Estoque de segurança (%)</label><input id="seguranca" type="number" min="0" step="1" value="10"></div>
+        <div class="field"><label>Arredondar compra para múltiplo</label><input id="multiplo" type="number" min="1" step="1" value="1"></div>
+      </div>
+      <div class="kpis">
+        <div class="card kpi"><span>Demanda projetada</span><strong id="kpiDemanda">—</strong><small>Unidades previstas para o período</small></div>
+        <div class="card kpi"><span>Estoque + a receber</span><strong id="kpiDisponivel">—</strong><small>Cobertura disponível</small></div>
+        <div class="card kpi"><span>Compra sugerida</span><strong id="kpiCompra">—</strong><small>Unidades necessárias</small></div>
+        <div class="card kpi"><span>Produtos para comprar</span><strong id="kpiProdutosComprar">—</strong><small>Códigos com necessidade de compra</small></div>
+      </div>
+      <div class="grid2">
+        <div class="card panel"><h3>Produtos com maior necessidade de compra</h3><div class="chart-wrap"><canvas id="chartNecessidade"></canvas></div></div>
+        <div class="card panel"><h3>Unidades vendidas por loja</h3><div class="chart-wrap"><canvas id="chartLojas"></canvas></div></div>
+      </div>
+      <div class="card table-card" style="margin-top:16px">
+        <div class="table-head"><div><b>Resumo individual por loja</b><div class="footer-note">Cada compra é calculada separadamente antes da consolidação.</div></div></div>
+        <div class="table-scroll" style="max-height:none"><table><thead><tr><th>Loja</th><th>Unidades vendidas</th><th>Demanda projetada</th><th>Estoque</th><th>A receber</th><th>Compra sugerida</th></tr></thead><tbody id="storeSummaryRows"></tbody></table></div>
+      </div>
+    </section>
+
+    <section id="produtos" class="view">
+      <div class="card table-card">
+        <div class="table-head"><div><b>Recomendação detalhada</b><div class="footer-note" id="rowCount"></div></div><input class="search" id="searchInput" placeholder="Buscar código, produto, linha ou tipo..."></div>
+        <div class="table-scroll"><table><thead><tr>
+          <th>Código</th><th>Produto</th><th>Unidades vendidas</th><th>Demanda</th><th>Estoque</th><th>A receber</th><th>Comprar</th><th>Situação</th>
+        </tr></thead><tbody id="productRows"></tbody></table></div>
+      </div>
+    </section>
+
+    <section id="importar" class="view">
+      <div class="notice"><b>Formato recomendado:</b> uma coluna de código do produto e colunas de quantidade. Selecione a loja para histórico e estoque. Os pendentes já estão incorporados e também podem ser substituídos por um único arquivo consolidado.</div>
+      <div class="card panel" style="margin-bottom:16px"><div class="field" style="max-width:320px"><label>Loja de destino da importação</label><select id="lojaImportacao"><option value="ciane">Cianê</option><option value="esplanada">Esplanada</option><option value="itape">Itape</option><option value="tatui">Tatuí</option></select></div></div>
+      <div class="import-grid">
+        <div class="card upload"><h3>Histórico de vendas em unidades</h3><p>Carrega os produtos e o número de unidades vendidas da loja selecionada. Valores em reais são ignorados.</p><label class="drop">Clique para selecionar .xls, .xlsx ou .csv<input id="historyFile" type="file" accept=".xls,.xlsx,.csv"></label><div class="statusline" id="historyStatus">Nenhum arquivo importado.</div></div>
+        <div class="card upload"><h3>Estoque atual</h3><p>O estoque de 15/07/2026 já está carregado. Envie outro relatório apenas para substituí-lo.</p><label class="drop">Clique para selecionar .xls, .xlsx ou .csv<input id="stockFile" type="file" accept=".xls,.xlsx,.csv"></label><div class="statusline" id="stockStatus">Nenhum arquivo importado.</div></div>
+        <div class="card upload"><h3>Produtos pendentes consolidados</h3><p>Base definitiva já carregada. Use apenas para substituir por uma nova planilha consolidada.</p><label class="drop">Clique para selecionar .xls, .xlsx ou .csv<input id="incomingFile" type="file" accept=".xls,.xlsx,.csv"></label><div class="statusline" id="incomingStatus">Nenhum arquivo importado.</div></div>
+      </div>
+      <div class="card panel" style="margin-top:16px">
+        <h3>Colunas reconhecidas</h3>
+        <p class="footer-note">Código: código, produto, EAN, código de barras ou referência. Descrição: descrição, nome ou produto. Quantidade histórica: vendido, vendas, quantidade ou qtd. Estoque: estoque, saldo ou disponível. A receber: pendente, comprado ou em trânsito.</p>
+        <button class="btn" id="downloadModel">Baixar modelo CSV</button>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="historico.js"></script>
+<script src="catalogos.js"></script>
+<script>
+const initialData = window.HISTORICO_INICIAL || [];
+let data = JSON.parse(localStorage.getItem("planejamentoComprasData") || "null") || structuredClone(initialData);
+let chartNecessidade, chartLojas;
+const nf = new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0});
+const money = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+
+function norm(v){return String(v??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"")}
+function num(v){if(typeof v==="number")return v; let s=String(v??"").trim().replace(/\s/g,""); if(s.includes(",")&&s.includes("."))s=s.replace(/\./g,"").replace(",","."); else s=s.replace(",","."); const n=Number(s); return Number.isFinite(n)?n:0}
+const STORES=["ciane","esplanada","itape","tatui"];
+const STORE_NAMES={ciane:"Cianê",esplanada:"Esplanada",itape:"Itape",tatui:"Tatuí"};
+function ensureStoreData(){
+  data.forEach(r=>{
+    if(!r.lojas) r.lojas={};
+    STORES.forEach(loja=>{
+      if(!r.lojas[loja]) r.lojas[loja]={historico:0,estoque:0,aReceber:0};
+    });
+  });
+}
+ensureStoreData();
+const APP_DATA_VERSION="base-final-completa-2026-07-15-v1";
+if(localStorage.getItem("planejamentoComprasVersion")!==APP_DATA_VERSION){
+  data=structuredClone(initialData);
+  localStorage.removeItem("planejamentoComprasData");
+  localStorage.setItem("planejamentoComprasVersion",APP_DATA_VERSION);
+}
+applyPreloadedPending();
+applyPreloadedStock();
+applyPreloadedHistory();
+function cfg(){return {store:document.querySelector("#lojaSelecionada").value,growth:num(document.querySelector("#crescimento").value)/100,safety:num(document.querySelector("#seguranca").value)/100,multiple:Math.max(1,num(document.querySelector("#multiplo").value)||1)}}
+function calcStore(r,store){
+  const c=cfg(), sd=r.lojas[store]||{historico:0,estoque:0,aReceber:0};
+  const hist=num(sd.historico);
+  const demand=Math.ceil(hist*(1+c.growth)*(1+c.safety));
+  const raw=Math.max(0,demand-num(sd.estoque)-num(sd.aReceber));
+  const buy=Math.ceil(raw/c.multiple)*c.multiple;
+  const coverage=demand?((num(sd.estoque)+num(sd.aReceber))/demand):1;
+  return {hist,demand,estoque:num(sd.estoque),aReceber:num(sd.aReceber),buy,coverage};
+}
+function calc(r){
+  const c=cfg();
+  if(c.store!=="todas"){
+    const x=calcStore(r,c.store);
+    return {...r,...x,loja:STORE_NAMES[c.store]};
+  }
+  const parts=STORES.map(st=>calcStore(r,st));
+  return {...r,
+    hist:parts.reduce((a,x)=>a+x.hist,0),
+    demand:parts.reduce((a,x)=>a+x.demand,0),
+    estoque:parts.reduce((a,x)=>a+x.estoque,0),
+    aReceber:parts.reduce((a,x)=>a+x.aReceber,0),
+    buy:parts.reduce((a,x)=>a+x.buy,0),
+    coverage:parts.reduce((a,x)=>a+x.demand,0)?parts.reduce((a,x)=>a+x.estoque+x.aReceber,0)/parts.reduce((a,x)=>a+x.demand,0):1,
+    loja:"Todas juntas"
+  };
+}
+function computed(){ensureStoreData();return data.map(calc)}
+function persist(){localStorage.setItem("planejamentoComprasData",JSON.stringify(data))}
+function render(){
+  const rows=computed(), demand=rows.reduce((a,r)=>a+r.demand,0), available=rows.reduce((a,r)=>a+num(r.estoque)+num(r.aReceber),0), buy=rows.reduce((a,r)=>a+r.buy,0), productCount=rows.filter(r=>r.buy>0).length;
+  document.querySelector("#kpiDemanda").textContent=nf.format(demand);
+  document.querySelector("#kpiDisponivel").textContent=nf.format(available);
+  document.querySelector("#kpiCompra").textContent=nf.format(buy);
+  document.querySelector("#kpiProdutosComprar").textContent=nf.format(productCount);
+  renderTable(rows); renderCharts(rows); renderStoreSummary();
+}
+function renderTable(rows){
+  const q=norm(document.querySelector("#searchInput").value);
+  const filtered=rows.filter(r=>!q||norm([r.codigo,r.descricao,r.linha,r.tipo].join(" ")).includes(q)).sort((a,b)=>b.buy-a.buy);
+  document.querySelector("#rowCount").textContent=`${nf.format(filtered.length)} produtos exibidos`;
+  document.querySelector("#productRows").innerHTML=filtered.map(r=>{
+    let cls="good",txt="Coberto"; if(r.buy>0&&r.coverage<.5){cls="bad";txt="Risco alto"}else if(r.buy>0){cls="warn";txt="Comprar"}
+    return `<tr><td>${r.codigo}</td><td class="desc" title="${String(r.descricao).replace(/"/g,"&quot;")}">${r.descricao}</td><td>${nf.format(r.hist)}</td><td>${nf.format(r.demand)}</td><td>${nf.format(r.estoque)}</td><td>${nf.format(r.aReceber)}</td><td><b>${nf.format(r.buy)}</b></td><td><span class="badge ${cls}">${txt}</span></td></tr>`
+  }).join("") || `<tr><td colspan="8" class="empty">Nenhum produto encontrado.</td></tr>`;
+}
+function renderCharts(rows){
+  const top=rows.filter(r=>r.buy>0).sort((a,b)=>b.buy-a.buy).slice(0,10);
+  if(chartNecessidade)chartNecessidade.destroy();
+  chartNecessidade=new Chart(document.querySelector("#chartNecessidade"),{type:"bar",data:{labels:top.map(r=>r.descricao.slice(0,28)),datasets:[{label:"Comprar",data:top.map(r=>r.buy),backgroundColor:"#1769e0",borderRadius:7}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
+  const storeStats=STORES.map(st=>[STORE_NAMES[st],data.reduce((a,r)=>a+num(r[st]),0)]);
+  if(chartLojas)chartLojas.destroy();
+  chartLojas=new Chart(document.querySelector("#chartLojas"),{type:"doughnut",data:{labels:storeStats.map(x=>x[0]),datasets:[{data:storeStats.map(x=>x[1]),backgroundColor:["#1769e0","#19a974","#f59e0b","#8b5cf6"]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}});
+}
+function renderStoreSummary(){
+  const rows=STORES.map(st=>{
+    let hist=0,demand=0,estoque=0,aReceber=0,buy=0;
+    data.forEach(r=>{const x=calcStore(r,st);hist+=x.hist;demand+=x.demand;estoque+=x.estoque;aReceber+=x.aReceber;buy+=x.buy});
+    return {st,hist,demand,estoque,aReceber,buy};
+  });
+  const total={st:"todas",hist:rows.reduce((a,x)=>a+x.hist,0),demand:rows.reduce((a,x)=>a+x.demand,0),estoque:rows.reduce((a,x)=>a+x.estoque,0),aReceber:rows.reduce((a,x)=>a+x.aReceber,0),buy:rows.reduce((a,x)=>a+x.buy,0)};
+  document.querySelector("#storeSummaryRows").innerHTML=[...rows,total].map(x=>`<tr><td><b>${x.st==="todas"?"Todas juntas":STORE_NAMES[x.st]}</b></td><td>${nf.format(x.hist)}</td><td>${nf.format(x.demand)}</td><td>${nf.format(x.estoque)}</td><td>${nf.format(x.aReceber)}</td><td><b>${nf.format(x.buy)}</b></td></tr>`).join("");
+}
+function findColumn(headers,candidates){
+  const normalized=headers.map(norm);
+  for(const c of candidates){const i=normalized.findIndex(h=>h===norm(c)||h.includes(norm(c)));if(i>=0)return headers[i]}
+  return null;
+}
+async function readSheet(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:"array",cellDates:false});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
+}
+
+function detectHeaderMap(row,type){
+  const cells=row.map(v=>norm(v));
+  const findAny=terms=>cells.findIndex(c=>terms.some(t=>c===norm(t)||c.includes(norm(t))));
+  const code=findAny(["codigo de barra","codigo de barras","codigo","ean","referencia"]);
+  const desc=findAny(["descricao produto","descriçao produto","descricao","nome do produto","produto"]);
+  let qty;
+  if(type==="history") qty=findAny(["qtde","quantidade vendida","qtd vendida","vendas","vendido","quantidade"]);
+  else if(type==="stock") qty=findAny(["estoque atual","estoque","saldo","disponivel","qtde","quantidade","qtd"]);
+  else qty=findAny(["a receber","em transito","pendente","comprado","qtde","quantidade","qtd"]);
+  return code>=0 && qty>=0 ? {code,desc,qty} : null;
+}
+
+
+
+
+function applyPreloadedHistory(){
+  ensureStoreData();
+
+  Object.entries(window.PRELOADED_HISTORY||{}).forEach(([key,quantity])=>{
+    const [store,reference]=key.split("|");
+    let record=data.find(item=>String(item.codigo)===reference);
+
+    if(!record){
+      record={
+        codigo:reference,
+        descricao:
+          window.HISTORY_DESCRIPTIONS?.[reference] ||
+          window.PRODUCT_DESCRIPTIONS?.[reference] ||
+          "Produto sem descrição",
+        linha:"",
+        tipo:"",
+        lojas:{}
+      };
+
+      STORES.forEach(storeName=>{
+        record.lojas[storeName]={historico:0,estoque:0,aReceber:0};
+      });
+
+      data.push(record);
+    }else if(
+      window.HISTORY_DESCRIPTIONS?.[reference] &&
+      (
+        !record.descricao ||
+        record.descricao==="Produto pendente" ||
+        record.descricao==="Produto sem descrição"
+      )
+    ){
+      record.descricao=window.HISTORY_DESCRIPTIONS[reference];
+    }
+
+    record.lojas[store].historico=num(quantity);
+  });
+}
+
+function applyPreloadedStock(){
+  ensureStoreData();
+  Object.entries(window.PRELOADED_STOCK||{}).forEach(([key,quantity])=>{
+    const [store,reference]=key.split("|");
+    let record=data.find(item=>String(item.codigo)===reference);
+
+    if(!record){
+      record={
+        codigo:reference,
+        descricao:window.PRODUCT_DESCRIPTIONS?.[reference]||"Produto sem descrição",
+        linha:"",
+        tipo:"",
+        lojas:{}
+      };
+      STORES.forEach(storeName=>{
+        record.lojas[storeName]={historico:0,estoque:0,aReceber:0};
+      });
+      data.push(record);
+    }else if(
+      window.PRODUCT_DESCRIPTIONS?.[reference] &&
+      (!record.descricao || record.descricao==="Produto pendente" || record.descricao==="Produto sem descrição")
+    ){
+      record.descricao=window.PRODUCT_DESCRIPTIONS[reference];
+    }
+
+    record.lojas[store].estoque=num(quantity);
+  });
+}
+
+function applyPreloadedPending(){ensureStoreData();Object.entries(window.PRELOADED_PENDING||{}).forEach(([k,q])=>{const [st,ref]=k.split("|");let r=data.find(x=>String(x.codigo)===ref);if(!r){r={codigo:ref,descricao:"Produto pendente",linha:"",tipo:"",lojas:{}};STORES.forEach(s=>r.lojas[s]={historico:0,estoque:0,aReceber:0});data.push(r)}r.lojas[st].aReceber=num(q)})}
+function parsePendingConsolidated(matrix){const h=matrix[0].map(norm),cis=[];h.forEach((v,i)=>{if(v==="cor")cis.push(i)});const ix={co:h.findIndex(v=>v.includes("razaosocial")),m:h.findIndex(v=>v==="material"),cc:cis[0]??-1,cn:cis[1]??cis[0]??-1,t:h.findIndex(v=>v.includes("tam")),q:h.findIndex(v=>v==="qtdov")};if(ix.co<0||ix.m<0||ix.cc<0||ix.q<0)throw new Error("Colunas obrigatórias não encontradas.");const cm={"POLIS CIANE LTDA":"ciane","POLIS ESPLANADA COMERCIAL LTDA":"esplanada","POLIS ITAPETININGA COMERCIAL LTDA":"itape","J P P COMERCIO EIRELI":"tatui"},o=[];for(let i=1;i<matrix.length;i++){const r=matrix[i],st=cm[String(r[ix.co]||"").trim().toUpperCase()],cn=String(r[ix.cn]||"").trim(),sz=String(r[ix.t]||"").trim();if(!st||!cn||!sz)continue;const mat=cleanCode(r[ix.m]),cc=String(r[ix.cc]||"").trim().padStart(4,"0"),ref=window.PENDING_MATERIAL_COLOR_TO_REF?.[`${mat}|${cc}`],q=num(r[ix.q]);if(ref&&q>0)o.push({st,ref,q})}return o}
+async function importPendingConsolidated(file,statusEl){try{const rows=parsePendingConsolidated(await readSheet(file));if(!rows.length)throw new Error("Nenhum produto válido encontrado.");ensureStoreData();STORES.forEach(s=>data.forEach(r=>{if(r.lojas?.[s])r.lojas[s].aReceber=0}));const t=new Map();rows.forEach(x=>{const k=`${x.st}|${x.ref}`;t.set(k,(t.get(k)||0)+x.q)});t.forEach((q,k)=>{const [st,ref]=k.split("|");let r=data.find(x=>String(x.codigo)===ref);if(!r){r={codigo:ref,descricao:"Produto pendente",linha:"",tipo:"",lojas:{}};STORES.forEach(s=>r.lojas[s]={historico:0,estoque:0,aReceber:0});data.push(r)}r.lojas[st].aReceber=q});persist();render();statusEl.textContent=`${file.name}: ${t.size} produtos e ${nf.format(rows.reduce((a,x)=>a+x.q,0))} unidades.`}catch(e){statusEl.textContent="Erro: "+e.message}}
+
+function cleanCode(v){
+  if(v===null||v===undefined||v==="")return "";
+  if(typeof v==="number" && Number.isFinite(v)) return String(Math.trunc(v));
+  let x=String(v).trim().replace(/\.0+$/,"");
+  if(/^\d+(\.\d+)?e\+?\d+$/i.test(x)){
+    const n=Number(x); if(Number.isFinite(n)) x=String(Math.trunc(n));
+  }
+  return x.replace(/\s/g,"");
+}
+
+
+function parseStockReport(matrix){
+  const parsed=[];
+  let headerMap=null;
+
+  for(const row of matrix){
+    const normalized=row.map(value=>norm(value));
+
+    const referenceIndex=normalized.findIndex(value=>value==="referencia");
+    const descriptionIndex=normalized.findIndex(value=>value==="descricao");
+    const totalIndex=normalized.findIndex(value=>value==="total");
+
+    if(referenceIndex>=0 && totalIndex>=0){
+      headerMap={
+        code:referenceIndex,
+        description:descriptionIndex,
+        quantity:totalIndex
+      };
+      continue;
+    }
+
+    if(!headerMap)continue;
+
+    const code=cleanCode(row[headerMap.code]);
+    if(!/^\d{8,14}$/.test(code))continue;
+
+    const description=
+      headerMap.description>=0
+        ? String(row[headerMap.description]??"").trim()
+        : "";
+
+    const quantity=num(row[headerMap.quantity]);
+
+    parsed.push({
+      code,
+      description,
+      quantity
+    });
+  }
+
+  return parsed;
+}
+
+function parseRows(matrix,type){
+  if(type==="stock"){
+    const stockRows=parseStockReport(matrix);
+    if(stockRows.length)return stockRows;
+  }
+
+  const parsed=[];
+  let insideProductBlock=false;
+
+  for(const row of matrix){
+    const texts=row.map(v=>String(v??"").trim());
+    const normalized=texts.map(norm);
+    const fullText=norm(texts.join(" "));
+
+    // Início de cada bloco de produtos do relatório.
+    const hasCodeHeader=normalized.some(v=>v.includes("codigodebarra")||v==="codigo"||v.includes("codigodebarras"));
+    const hasDescriptionHeader=normalized.some(v=>v.includes("descricaoproduto")||v==="descricao"||v.includes("nomeproduto"));
+    const hasQuantityHeader=normalized.some(v=>v==="qtde"||v==="qtd"||v.includes("quantidade"));
+    if(hasCodeHeader && hasQuantityHeader){
+      insideProductBlock=true;
+      continue;
+    }
+
+    // Fim lógico de um bloco; o próximo cabeçalho poderá reabri-lo.
+    if(fullText.includes("totaldagrade")){
+      insideProductBlock=false;
+      continue;
+    }
+    if(!insideProductBlock)continue;
+
+    // O relatório usa células mescladas: o título pode estar em uma coluna
+    // e o valor real na coluna seguinte. Por isso, os dados são detectados
+    // pelo conteúdo da linha, não pela posição do cabeçalho.
+    let code="";
+    let codeIndex=-1;
+    for(let i=0;i<texts.length;i++){
+      const candidate=cleanCode(texts[i]);
+      if(/^\d{8,14}$/.test(candidate)){
+        code=candidate;
+        codeIndex=i;
+        break;
+      }
+    }
+    if(!code)continue;
+
+    let description="";
+    for(let i=codeIndex+1;i<texts.length;i++){
+      const value=texts[i];
+      if(!value)continue;
+      const cleaned=cleanCode(value);
+      if(/^\d{8,14}$/.test(cleaned))continue;
+      if(typeof row[i]==="number")continue;
+      if(norm(value).includes("totaldagrade"))continue;
+      if(value.length>=4){
+        description=value;
+        break;
+      }
+    }
+
+    let quantity=0;
+    let quantityFound=false;
+    // A quantidade é o primeiro número depois da descrição.
+    // O último número da linha é a Venda total em reais e não deve ser usado.
+    const descriptionIndex=description ? texts.findIndex((v,i)=>i>codeIndex && v===description) : codeIndex;
+    for(let i=Math.max(codeIndex+1,descriptionIndex+1);i<texts.length;i++){
+      const raw=row[i];
+      if(raw===""||raw===null||raw===undefined)continue;
+      if(typeof raw==="number" && Number.isFinite(raw)){
+        quantity=raw;
+        quantityFound=true;
+        break;
+      }
+      const rawText=String(raw).trim();
+      if(/^[-+]?\\d+(?:[.,]\\d+)?$/.test(rawText)){
+        quantity=num(rawText);
+        quantityFound=true;
+        break;
+      }
+    }
+
+    if(!quantityFound)continue;
+    parsed.push({code,description,quantity});
+  }
+  return parsed;
+}
+async function importFile(file,type,statusEl){
+  try{
+    const matrix=await readSheet(file);
+    if(!matrix.length)throw new Error("A planilha está vazia.");
+    const parsed=parseRows(matrix,type);
+    if(!parsed.length){
+      throw new Error("Não encontrei produtos no relatório. O leitor verificou blocos com Código de barra e Qtde., inclusive quando os dados ficam em colunas vizinhas por causa de células mescladas.");
+    }
+    const targetStore=document.querySelector("#lojaImportacao").value;
+    ensureStoreData();
+    const byCode=new Map(data.map(r=>[String(r.codigo),r]));
+    const aggregated=new Map();
+    parsed.forEach(item=>{
+      const prev=aggregated.get(item.code)||{description:item.description,quantity:0};
+      prev.quantity+=item.quantity;
+      if(!prev.description && item.description)prev.description=item.description;
+      aggregated.set(item.code,prev);
+    });
+
+    const field=type==="history"?"historico":type==="stock"?"estoque":"aReceber";
+    data.forEach(r=>{if(r.lojas?.[targetStore])r.lojas[targetStore][field]=0});
+
+    let updated=0,created=0;
+    aggregated.forEach((item,code)=>{
+      let rec=byCode.get(code);
+      if(!rec){
+        rec={codigo:code,descricao:item.description||"Produto sem descrição",linha:"",tipo:"",lojas:{}};
+        STORES.forEach(st=>rec.lojas[st]={historico:0,estoque:0,aReceber:0});
+        data.push(rec);byCode.set(code,rec);created++;
+      }else if(item.description && (!rec.descricao || rec.descricao==="Produto sem descrição")){
+        rec.descricao=item.description;
+      }
+      rec.lojas[targetStore][field]=item.quantity;
+      updated++;
+    });
+
+    persist();render();
+    statusEl.textContent=`${file.name}: ${parsed.length} linhas lidas, ${updated} produtos únicos atualizados e ${created} novos códigos criados em ${STORE_NAMES[targetStore]}.`;
+  }catch(e){
+    statusEl.textContent="Erro: "+e.message;
+  }
+}
+function exportCSV(){
+  const rows=computed().sort((a,b)=>b.buy-a.buy), headers=["Loja","Codigo","Descricao","Linha","Tipo","Historico","Demanda projetada","Estoque","A receber","Compra sugerida"];
+  const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const csv=[headers.join(";"),...rows.map(r=>[r.loja,r.codigo,r.descricao,r.linha,r.tipo,r.hist,r.demand,r.estoque,r.aReceber,r.buy].map(esc).join(";"))].join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="recomendacao_de_compra.csv";a.click();URL.revokeObjectURL(a.href)
+}
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button,.view").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelector("#"+b.dataset.view).classList.add("active");const titles={dashboard:["Visão geral","Indicadores principais e recomendação de compras."],produtos:["Produtos e recomendação","Detalhamento auditável por código de produto."],importar:["Importar planilhas","Importe histórico, estoque atual e produtos a receber."]};document.querySelector("#pageTitle").textContent=titles[b.dataset.view][0];document.querySelector("#pageSubtitle").textContent=titles[b.dataset.view][1]});
+["lojaSelecionada","crescimento","seguranca","multiplo"].forEach(id=>document.querySelector("#"+id).addEventListener("input",render));
+document.querySelector("#searchInput").addEventListener("input",()=>renderTable(computed()));
+document.querySelector("#exportBtn").onclick=exportCSV;
+document.querySelector("#resetBtn").onclick=()=>{if(confirm("Restaurar os estoques e pendentes incorporados e apagar as importações locais?")){data=structuredClone(initialData);ensureStoreData();applyPreloadedPending();applyPreloadedStock();applyPreloadedHistory();localStorage.removeItem("planejamentoComprasData");localStorage.setItem("planejamentoComprasVersion",APP_DATA_VERSION);render()}};
+document.querySelector("#historyFile").onchange=e=>e.target.files[0]&&importFile(e.target.files[0],"history",document.querySelector("#historyStatus"));
+document.querySelector("#stockFile").onchange=e=>e.target.files[0]&&importFile(e.target.files[0],"stock",document.querySelector("#stockStatus"));
+document.querySelector("#incomingFile").onchange=e=>e.target.files[0]&&importPendingConsolidated(e.target.files[0],document.querySelector("#incomingStatus"));
+document.querySelector("#downloadModel").onclick=()=>{const csv="Codigo;Descricao;Quantidade\n40000290001;HAVAIANAS TOP BRANCO;100\n";const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv"}));a.download="modelo_importacao.csv";a.click()};
+render();
+</script>
+</body>
+</html>

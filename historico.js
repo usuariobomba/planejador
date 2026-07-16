@@ -1,0 +1,1 @@
+window.HISTORICO_INICIAL=[];

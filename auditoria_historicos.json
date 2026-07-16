@@ -1,0 +1,26 @@
+{
+  "historicos": {
+    "Cianê": {
+      "linhas_validas": 378,
+      "produtos": 378,
+      "unidades_vendidas": 21436
+    },
+    "Esplanada": {
+      "linhas_validas": 422,
+      "produtos": 422,
+      "unidades_vendidas": 34025
+    },
+    "Itape": {
+      "linhas_validas": 391,
+      "produtos": 391,
+      "unidades_vendidas": 12605
+    },
+    "Tatuí": {
+      "linhas_validas": 416,
+      "produtos": 416,
+      "unidades_vendidas": 17980
+    }
+  },
+  "total_unidades_vendidas": 86046,
+  "total_registros_loja_produto": 1607
+}
