@@ -60,7 +60,7 @@
       <div class="settings card panel">
         <div class="field"><label>Loja analisada</label><select id="lojaSelecionada"><option value="todas">Todas juntas</option><option value="ciane">Cianê</option><option value="esplanada">Esplanada</option><option value="itape">Itape</option><option value="tatui">Tatuí</option></select></div>
         <div class="field"><label>Crescimento esperado (%)</label><input id="crescimento" type="number" min="-100" step="1" value="0"></div>
-        <div class="field"><label>Estoque de segurança (%)</label><input id="seguranca" type="number" min="0" step="1" value="10"></div>
+        <div class="field"><label>Estoque de segurança (%)</label><input id="seguranca" type="number" min="0" step="1" value="0"></div>
         <div class="field"><label>Arredondar compra para múltiplo</label><input id="multiplo" type="number" min="1" step="1" value="1"></div>
       </div>
       <div class="kpis">
@@ -91,7 +91,7 @@
 
     <section id="tamanhos" class="view">
       <div class="notice">
-        Consulte o estoque físico por tamanho. Essa tela não altera a recomendação de compra, que continua calculada no nível de modelo e cor.
+        A exportação desta aba contém apenas os dados essenciais por tamanho e ignora produtos de tamanho único.
       </div>
 
       <div class="settings card panel">
@@ -132,6 +132,7 @@
             <b>Disponibilidade por tamanho</b>
             <div class="footer-note" id="sizeRowCount"></div>
           </div>
+          <button class="btn primary" id="exportSizeBtn">Exportar recomendação por tamanho</button>
         </div>
         <div class="table-scroll">
           <table>
@@ -605,16 +606,189 @@ function renderSizeStock(){
 }
 
 
+
+
+function allocateRecommendationBySize(record,store,result,eligibleSizes){
+  if(result.buy<=0 || !eligibleSizes.length)return [];
+
+  const sorted=[...eligibleSizes].sort((a,b)=>
+    a.size.localeCompare(b.size,"pt-BR",{numeric:true})
+  );
+
+  const totalSizeStock=sorted.reduce(
+    (sum,item)=>sum+Math.max(0,num(item.quantity)),
+    0
+  );
+
+  // O histórico disponível é por modelo/cor. Portanto, a demanda e a compra
+  // totais são distribuídas entre os tamanhos conforme a composição da grade.
+  // Se todos os tamanhos estiverem zerados, a distribuição é uniforme.
+  const weights=sorted.map(item=>
+    totalSizeStock>0
+      ? Math.max(0,num(item.quantity))/totalSizeStock
+      : 1/sorted.length
+  );
+
+  function allocateInteger(total){
+    const exact=weights.map(weight=>total*weight);
+    const base=exact.map(value=>Math.floor(value));
+    let remainder=Math.max(
+      0,
+      Math.round(total)-base.reduce((sum,value)=>sum+value,0)
+    );
+
+    const order=exact
+      .map((value,index)=>({index,fraction:value-base[index]}))
+      .sort((a,b)=>b.fraction-a.fraction);
+
+    for(let i=0;i<remainder;i++){
+      base[order[i%order.length].index]++;
+    }
+
+    return base;
+  }
+
+  const historicalBySize=allocateInteger(result.hist);
+  const demandBySize=allocateInteger(result.demand);
+  const incomingBySize=allocateInteger(result.aReceber);
+  const buyBySize=allocateInteger(result.buy);
+
+  return sorted.map((item,index)=>({
+    size:item.size,
+    historical:historicalBySize[index],
+    demand:demandBySize[index],
+    stock:num(item.quantity),
+    incoming:incomingBySize[index],
+    buy:buyBySize[index]
+  }));
+}
+
+
+function exportSizeStockCSV(){
+  const selectedStore=document.querySelector("#sizeStore")?.value||"todas";
+  const selectedSize=document.querySelector("#sizeFilter")?.value||"";
+  const query=norm(document.querySelector("#sizeSearch")?.value||"");
+
+  const storesToExport=selectedStore==="todas"
+    ? STORES
+    : [selectedStore];
+
+  const output=[];
+
+  storesToExport.forEach(store=>{
+    data.forEach(record=>{
+      const allSizes=SIZE_STOCK.filter(item=>
+        item.store===store &&
+        String(item.code)===String(record.codigo)
+      );
+
+      const distinctSizes=new Set(
+        allSizes
+          .map(item=>item.size)
+          .filter(size=>size && size!=="Único")
+      );
+
+      // Ignora tamanho único e produtos sem grade real.
+      if(distinctSizes.size<=1)return;
+
+      if(query && !norm(`${record.codigo} ${record.descricao}`).includes(query)){
+        return;
+      }
+
+      const result=calcStore(record,store);
+      if(result.buy<=0)return;
+
+      const eligibleSizes=allSizes.filter(item=>
+        item.size!=="Único" &&
+        (!selectedSize || item.size===selectedSize)
+      );
+
+      if(!eligibleSizes.length)return;
+
+      allocateRecommendationBySize(
+        record,
+        store,
+        result,
+        eligibleSizes
+      ).forEach(item=>{
+        // Exporta apenas tamanhos com demanda projetada maior que zero.
+        if(item.demand<=0)return;
+
+        output.push({
+          loja:STORE_NAMES[store],
+          codigo:record.codigo,
+          descricao:record.descricao,
+          tamanho:item.size,
+          vendaLY:item.historical,
+          demandaProjetada:item.demand,
+          estoqueAtual:item.stock,
+          aReceber:item.incoming,
+          compraSugerida:item.buy
+        });
+      });
+    });
+  });
+
+  output.sort((a,b)=>
+    a.loja.localeCompare(b.loja,"pt-BR") ||
+    a.descricao.localeCompare(b.descricao,"pt-BR") ||
+    a.tamanho.localeCompare(b.tamanho,"pt-BR",{numeric:true})
+  );
+
+  const headers=[
+    "Loja",
+    "Codigo",
+    "Descricao",
+    "Tamanho",
+    "Venda LY",
+    "Demanda Projetada",
+    "Estoque atual",
+    "A receber",
+    "Compra sugerida"
+  ];
+
+  const escapeValue=value=>`"${String(value??"").replace(/"/g,'""')}"`;
+
+  const csv=[
+    headers.join(";"),
+    ...output.map(row=>[
+      row.loja,
+      row.codigo,
+      row.descricao,
+      row.tamanho,
+      row.vendaLY,
+      row.demandaProjetada,
+      row.estoqueAtual,
+      row.aReceber,
+      row.compraSugerida
+    ].map(escapeValue).join(";"))
+  ].join("\n");
+
+  const blob=new Blob(["\ufeff"+csv],{
+    type:"text/csv;charset=utf-8"
+  });
+
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);
+  link.download="recomendacao_compra_por_tamanho.csv";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+
+
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button,.view").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelector("#"+b.dataset.view).classList.add("active");const titles={dashboard:["Visão geral","Indicadores principais e recomendação de compras."],produtos:["Produtos e recomendação","Detalhamento auditável por código de produto."],tamanhos:["Estoque por tamanho","Consulte a disponibilidade exata por loja, produto e grade."],importar:["Importar planilhas","Importe histórico, estoque atual e produtos a receber."]};document.querySelector("#pageTitle").textContent=titles[b.dataset.view][0];document.querySelector("#pageSubtitle").textContent=titles[b.dataset.view][1];if(b.dataset.view==="tamanhos")renderSizeStock()});
 ["lojaSelecionada","crescimento","seguranca","multiplo"].forEach(id=>document.querySelector("#"+id).addEventListener("input",render));
 document.querySelector("#searchInput").addEventListener("input",()=>renderTable(computed()));
 ["sizeStore","sizeFilter","sizeSearch"].forEach(id=>{
   document.querySelector("#"+id)?.addEventListener("input",renderSizeStock);
 });
+document.querySelector("#seguranca").value=0;
 populateSizeFilter();
 renderSizeStock();
+document.querySelector("#exportSizeBtn")?.addEventListener("click",exportSizeStockCSV);
 document.querySelector("#exportBtn").onclick=exportCSV;
-document.querySelector("#resetBtn").onclick=()=>{if(confirm("Restaurar os estoques e pendentes incorporados e apagar as importações locais?")){data=structuredClone(initialData);ensureStoreData();applyPreloadedPending();applyPreloadedStock();applyPreloadedHistory();localStorage.removeItem("planejamentoComprasData");localStorage.setItem("planejamentoComprasVersion",APP_DATA_VERSION);render()}};
+document.querySelector("#resetBtn").onclick=()=>{if(confirm("Restaurar os estoques e pendentes incorporados e apagar as importações locais?")){data=structuredClone(initialData);ensureStoreData();applyPreloadedPending();applyPreloadedStock();applyPreloadedHistory();localStorage.removeItem("planejamentoComprasData");localStorage.setItem("planejamentoComprasVersion",APP_DATA_VERSION);document.querySelector("#seguranca").value=0;render()}};
 document.querySelector("#historyFile").onchange=e=>e.target.files[0]&&importFile(e.target.files[0],"history",document.querySelector("#historyStatus"));
 document.querySelector("#stockFile").onchange=e=>e.target.files[0]&&importFile(e.target.files[0],"stock",document.querySelector("#stockStatus"));
 document.querySelector("#incomingFile").onchange=e=>e.target.files[0]&&importPendingConsolidated(e.target.files[0],document.querySelector("#incomingStatus"));
