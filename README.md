@@ -1,21 +1,13 @@
-# Planejamento de Compras — exportação completa por tamanho
+# Planejamento de Compras — Regra 1: venda líquida
 
-A exportação da aba Estoque por tamanho contém todos os produtos com demanda projetada.
-
-Colunas:
-- Loja
-- Código
-- Descrição
-- Tamanho
-- Venda LY
-- Demanda Projetada
-- Estoque atual
-- A receber
-- Compra sugerida
+A exportação por tamanho mantém os valores negativos encontrados nos históricos.
 
 Regras:
-- Produtos de tamanho único são exportados em uma única linha.
-- Produtos sem grade identificada são classificados como Único.
-- Produtos com vários tamanhos são exportados em uma linha para cada tamanho.
-- A soma dos tamanhos preserva os totais de venda, demanda, recebimento e compra do produto.
-- Estoque de cada tamanho é lido diretamente da grade dos relatórios finais.
+- Vendas positivas permanecem positivas.
+- Devoluções e estornos permanecem negativos.
+- Produtos com demanda negativa também aparecem no arquivo.
+- Compra sugerida de produtos com demanda negativa é zero.
+- Produtos de tamanho único aparecem em uma linha.
+- Produtos com grade aparecem separados por tamanho.
+- A soma dos tamanhos preserva o total líquido do produto.
+- O total validado da Demanda Projetada é 86.046.

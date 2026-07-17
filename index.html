@@ -91,7 +91,7 @@
 
     <section id="tamanhos" class="view">
       <div class="notice">
-        A exportação desta aba contém todos os produtos. Itens de tamanho único ficam em uma linha; produtos com grade são separados corretamente por tamanho.
+        A exportação inclui vendas positivas e negativas. Devoluções e estornos permanecem como demanda negativa, enquanto a compra sugerida desses itens fica em zero.
       </div>
 
       <div class="settings card panel">
@@ -609,7 +609,7 @@ function renderSizeStock(){
 
 
 function allocateRecommendationBySize(record,store,result,eligibleSizes){
-  if(result.buy<=0 || !eligibleSizes.length)return [];
+  if(result.demand===0 || !eligibleSizes.length)return [];
 
   const sorted=[...eligibleSizes].sort((a,b)=>
     a.size.localeCompare(b.size,"pt-BR",{numeric:true})
@@ -685,7 +685,7 @@ function exportSizeStockCSV(){
       const result=calcStore(record,store);
 
       // A exportação apresenta somente itens com demanda projetada.
-      if(result.demand<=0)return;
+      if(result.demand===0)return;
 
       const allSizeRows=SIZE_STOCK.filter(item=>
         item.store===store &&
@@ -730,7 +730,7 @@ function exportSizeStockCSV(){
       );
 
       allocated.forEach(item=>{
-        if(item.demand<=0)return;
+        if(item.demand===0)return;
 
         output.push({
           loja:STORE_NAMES[store],
