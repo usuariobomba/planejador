@@ -91,7 +91,7 @@
 
     <section id="tamanhos" class="view">
       <div class="notice">
-        A exportação desta aba contém apenas os dados essenciais por tamanho e ignora produtos de tamanho único.
+        A exportação desta aba contém todos os produtos. Itens de tamanho único ficam em uma linha; produtos com grade são separados corretamente por tamanho.
       </div>
 
       <div class="settings card panel">
@@ -664,6 +664,7 @@ function allocateRecommendationBySize(record,store,result,eligibleSizes){
 }
 
 
+
 function exportSizeStockCSV(){
   const selectedStore=document.querySelector("#sizeStore")?.value||"todas";
   const selectedSize=document.querySelector("#sizeFilter")?.value||"";
@@ -677,41 +678,58 @@ function exportSizeStockCSV(){
 
   storesToExport.forEach(store=>{
     data.forEach(record=>{
-      const allSizes=SIZE_STOCK.filter(item=>
-        item.store===store &&
-        String(item.code)===String(record.codigo)
-      );
-
-      const distinctSizes=new Set(
-        allSizes
-          .map(item=>item.size)
-          .filter(size=>size && size!=="Único")
-      );
-
-      // Ignora tamanho único e produtos sem grade real.
-      if(distinctSizes.size<=1)return;
-
       if(query && !norm(`${record.codigo} ${record.descricao}`).includes(query)){
         return;
       }
 
       const result=calcStore(record,store);
-      if(result.buy<=0)return;
 
-      const eligibleSizes=allSizes.filter(item=>
-        item.size!=="Único" &&
-        (!selectedSize || item.size===selectedSize)
+      // A exportação apresenta somente itens com demanda projetada.
+      if(result.demand<=0)return;
+
+      const allSizeRows=SIZE_STOCK.filter(item=>
+        item.store===store &&
+        String(item.code)===String(record.codigo)
       );
+
+      // Remove duplicidades de tamanho somando o estoque encontrado.
+      const sizeMap=new Map();
+      allSizeRows.forEach(item=>{
+        const label=item.size||"Único";
+        if(!sizeMap.has(label)){
+          sizeMap.set(label,{
+            size:label,
+            quantity:0
+          });
+        }
+        sizeMap.get(label).quantity+=num(item.quantity);
+      });
+
+      let eligibleSizes=[...sizeMap.values()];
+
+      // Produtos sem grade identificada são tratados como tamanho único.
+      if(!eligibleSizes.length){
+        eligibleSizes=[{
+          size:"Único",
+          quantity:result.estoque
+        }];
+      }
+
+      // O filtro de tamanho também se aplica aos itens de tamanho único.
+      if(selectedSize){
+        eligibleSizes=eligibleSizes.filter(item=>item.size===selectedSize);
+      }
 
       if(!eligibleSizes.length)return;
 
-      allocateRecommendationBySize(
+      const allocated=allocateRecommendationBySize(
         record,
         store,
         result,
         eligibleSizes
-      ).forEach(item=>{
-        // Exporta apenas tamanhos com demanda projetada maior que zero.
+      );
+
+      allocated.forEach(item=>{
         if(item.demand<=0)return;
 
         output.push({
@@ -770,10 +788,11 @@ function exportSizeStockCSV(){
 
   const link=document.createElement("a");
   link.href=URL.createObjectURL(blob);
-  link.download="recomendacao_compra_por_tamanho.csv";
+  link.download="recomendacao_compra_completa_por_tamanho.csv";
   link.click();
   URL.revokeObjectURL(link.href);
 }
+
 
 
 

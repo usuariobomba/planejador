@@ -1,7 +1,8 @@
-# Planejamento de Compras — exportação enxuta por tamanho
+# Planejamento de Compras — exportação completa por tamanho
 
-A exportação da aba Estoque por tamanho contém somente:
+A exportação da aba Estoque por tamanho contém todos os produtos com demanda projetada.
 
+Colunas:
 - Loja
 - Código
 - Descrição
@@ -12,5 +13,9 @@ A exportação da aba Estoque por tamanho contém somente:
 - A receber
 - Compra sugerida
 
-Somente produtos com múltiplos tamanhos são exportados.
-Linhas com demanda projetada igual a zero são ignoradas.
+Regras:
+- Produtos de tamanho único são exportados em uma única linha.
+- Produtos sem grade identificada são classificados como Único.
+- Produtos com vários tamanhos são exportados em uma linha para cada tamanho.
+- A soma dos tamanhos preserva os totais de venda, demanda, recebimento e compra do produto.
+- Estoque de cada tamanho é lido diretamente da grade dos relatórios finais.
