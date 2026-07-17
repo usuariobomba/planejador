@@ -1,0 +1,23 @@
+{
+  "dashboard": {
+    "vendaLY": 86046,
+    "demandaProjetada": 86046,
+    "estoqueAtual": 28593,
+    "aReceber": 2712,
+    "compraSugerida": 64693
+  },
+  "exportacao": {
+    "vendaLY": 86046,
+    "demandaProjetada": 86046,
+    "estoqueAtual": 28593,
+    "aReceber": 2712,
+    "compraSugerida": 64693
+  },
+  "diferencas": {
+    "vendaLY": 0,
+    "demandaProjetada": 0,
+    "estoqueAtual": 0,
+    "aReceber": 0,
+    "compraSugerida": 0
+  }
+}

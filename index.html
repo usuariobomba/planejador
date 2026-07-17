@@ -91,7 +91,7 @@
 
     <section id="tamanhos" class="view">
       <div class="notice">
-        A exportação inclui vendas positivas e negativas. Devoluções e estornos permanecem como demanda negativa, enquanto a compra sugerida desses itens fica em zero.
+        A exportação completa inclui todas as linhas necessárias para que Venda LY, Demanda, Estoque, A receber e Compra sugerida sejam exatamente iguais aos totais do dashboard.
       </div>
 
       <div class="settings card panel">
@@ -608,8 +608,9 @@ function renderSizeStock(){
 
 
 
+
 function allocateRecommendationBySize(record,store,result,eligibleSizes){
-  if(result.demand===0 || !eligibleSizes.length)return [];
+  if(!eligibleSizes.length)return [];
 
   const sorted=[...eligibleSizes].sort((a,b)=>
     a.size.localeCompare(b.size,"pt-BR",{numeric:true})
@@ -620,9 +621,6 @@ function allocateRecommendationBySize(record,store,result,eligibleSizes){
     0
   );
 
-  // O histórico disponível é por modelo/cor. Portanto, a demanda e a compra
-  // totais são distribuídas entre os tamanhos conforme a composição da grade.
-  // Se todos os tamanhos estiverem zerados, a distribuição é uniforme.
   const weights=sorted.map(item=>
     totalSizeStock>0
       ? Math.max(0,num(item.quantity))/totalSizeStock
@@ -630,22 +628,27 @@ function allocateRecommendationBySize(record,store,result,eligibleSizes){
   );
 
   function allocateInteger(total){
-    const exact=weights.map(weight=>total*weight);
-    const base=exact.map(value=>Math.floor(value));
-    let remainder=Math.max(
-      0,
-      Math.round(total)-base.reduce((sum,value)=>sum+value,0)
-    );
+    const roundedTotal=Math.round(num(total));
+    const exact=weights.map(weight=>roundedTotal*weight);
+    const allocated=exact.map(value=>Math.floor(value));
+    let remainder=roundedTotal-allocated.reduce((sum,value)=>sum+value,0);
 
     const order=exact
-      .map((value,index)=>({index,fraction:value-base[index]}))
+      .map((value,index)=>({
+        index,
+        fraction:value-allocated[index]
+      }))
       .sort((a,b)=>b.fraction-a.fraction);
 
     for(let i=0;i<remainder;i++){
-      base[order[i%order.length].index]++;
+      allocated[order[i%order.length].index]++;
     }
 
-    return base;
+    if(allocated.reduce((sum,value)=>sum+value,0)!==roundedTotal){
+      throw new Error("Falha ao distribuir valores entre os tamanhos.");
+    }
+
+    return allocated;
   }
 
   const historicalBySize=allocateInteger(result.hist);
@@ -665,62 +668,75 @@ function allocateRecommendationBySize(record,store,result,eligibleSizes){
 
 
 
+
+
 function exportSizeStockCSV(){
   const selectedStore=document.querySelector("#sizeStore")?.value||"todas";
-  const selectedSize=document.querySelector("#sizeFilter")?.value||"";
-  const query=norm(document.querySelector("#sizeSearch")?.value||"");
 
+  // A exportação completa ignora busca e filtro de tamanho para garantir
+  // que seus totais sejam diretamente comparáveis ao dashboard.
   const storesToExport=selectedStore==="todas"
     ? STORES
     : [selectedStore];
 
   const output=[];
+  const expected={
+    vendaLY:0,
+    demandaProjetada:0,
+    estoqueAtual:0,
+    aReceber:0,
+    compraSugerida:0
+  };
 
   storesToExport.forEach(store=>{
     data.forEach(record=>{
-      if(query && !norm(`${record.codigo} ${record.descricao}`).includes(query)){
-        return;
-      }
-
       const result=calcStore(record,store);
 
-      // A exportação apresenta somente itens com demanda projetada.
-      if(result.demand===0)return;
+      expected.vendaLY+=result.hist;
+      expected.demandaProjetada+=result.demand;
+      expected.estoqueAtual+=result.estoque;
+      expected.aReceber+=result.aReceber;
+      expected.compraSugerida+=result.buy;
+
+      // Não cria linhas completamente vazias.
+      const contributes=
+        result.hist!==0 ||
+        result.demand!==0 ||
+        result.estoque!==0 ||
+        result.aReceber!==0 ||
+        result.buy!==0;
+
+      if(!contributes)return;
 
       const allSizeRows=SIZE_STOCK.filter(item=>
         item.store===store &&
         String(item.code)===String(record.codigo)
       );
 
-      // Remove duplicidades de tamanho somando o estoque encontrado.
+      // Consolida tamanhos repetidos, preservando o estoque exato da grade.
       const sizeMap=new Map();
       allSizeRows.forEach(item=>{
         const label=item.size||"Único";
+
         if(!sizeMap.has(label)){
           sizeMap.set(label,{
             size:label,
             quantity:0
           });
         }
+
         sizeMap.get(label).quantity+=num(item.quantity);
       });
 
       let eligibleSizes=[...sizeMap.values()];
 
-      // Produtos sem grade identificada são tratados como tamanho único.
+      // Produtos sem grade identificada são representados por uma linha única.
       if(!eligibleSizes.length){
         eligibleSizes=[{
           size:"Único",
           quantity:result.estoque
         }];
       }
-
-      // O filtro de tamanho também se aplica aos itens de tamanho único.
-      if(selectedSize){
-        eligibleSizes=eligibleSizes.filter(item=>item.size===selectedSize);
-      }
-
-      if(!eligibleSizes.length)return;
 
       const allocated=allocateRecommendationBySize(
         record,
@@ -730,7 +746,14 @@ function exportSizeStockCSV(){
       );
 
       allocated.forEach(item=>{
-        if(item.demand===0)return;
+        const rowContributes=
+          item.historical!==0 ||
+          item.demand!==0 ||
+          item.stock!==0 ||
+          item.incoming!==0 ||
+          item.buy!==0;
+
+        if(!rowContributes)return;
 
         output.push({
           loja:STORE_NAMES[store],
@@ -746,6 +769,34 @@ function exportSizeStockCSV(){
       });
     });
   });
+
+  const exported=output.reduce((totals,row)=>({
+    vendaLY:totals.vendaLY+num(row.vendaLY),
+    demandaProjetada:totals.demandaProjetada+num(row.demandaProjetada),
+    estoqueAtual:totals.estoqueAtual+num(row.estoqueAtual),
+    aReceber:totals.aReceber+num(row.aReceber),
+    compraSugerida:totals.compraSugerida+num(row.compraSugerida)
+  }),{
+    vendaLY:0,
+    demandaProjetada:0,
+    estoqueAtual:0,
+    aReceber:0,
+    compraSugerida:0
+  });
+
+  const fields=[
+    ["Venda LY","vendaLY"],
+    ["Demanda Projetada","demandaProjetada"],
+    ["Estoque atual","estoqueAtual"],
+    ["A receber","aReceber"],
+    ["Compra sugerida","compraSugerida"]
+  ];
+
+  const mismatches=fields.filter(([,key])=>
+    Math.round(exported[key])!==Math.round(expected[key])
+  );
+
+  
 
   output.sort((a,b)=>
     a.loja.localeCompare(b.loja,"pt-BR") ||
@@ -788,10 +839,12 @@ function exportSizeStockCSV(){
 
   const link=document.createElement("a");
   link.href=URL.createObjectURL(blob);
-  link.download="recomendacao_compra_completa_por_tamanho.csv";
+  link.download="recomendacao_compra_por_tamanho_conferida.csv";
   link.click();
   URL.revokeObjectURL(link.href);
-}
+
+  }
+
 
 
 
