@@ -172,6 +172,7 @@
 <script src="catalogos.js"></script>
 <script src="estoque_tamanhos.js"></script>
 <script src="historico_tamanhos_real.js"></script>
+<script src="pendentes_tamanhos_real.js"></script>
 <script>
 const initialData = window.HISTORICO_INICIAL || [];
 let data = JSON.parse(localStorage.getItem("planejamentoComprasData") || "null") || structuredClone(initialData);
@@ -192,7 +193,7 @@ function ensureStoreData(){
   });
 }
 ensureStoreData();
-const APP_DATA_VERSION="historico-real-por-tamanho-funcional-2026-07-19-v3";
+const APP_DATA_VERSION="pendentes2-coluna-n-descricoes-export-fix-2026-07-19-v8";
 if(localStorage.getItem("planejamentoComprasVersion")!==APP_DATA_VERSION){
   data=structuredClone(initialData);
   localStorage.removeItem("planejamentoComprasData");
@@ -206,10 +207,12 @@ function cfg(){return {store:document.querySelector("#lojaSelecionada").value,gr
 
 const REAL_SIZE_HISTORY=window.REAL_SIZE_HISTORY||[];
 const SIZE_STOCK=window.SIZE_STOCK||[];
+const REAL_SIZE_PENDING=window.REAL_SIZE_PENDING||[];
 
-// Índices criados uma única vez para evitar milhares de .filter() a cada renderização.
+// Índices criados uma única vez para evitar milhares de buscas a cada renderização.
 const REAL_HISTORY_BY_PRODUCT_SIZE=new Map();
 const STOCK_BY_PRODUCT_SIZE=new Map();
+const PENDING_BY_PRODUCT_SIZE=new Map();
 
 REAL_SIZE_HISTORY.forEach(item=>{
   const key=`${item.store}|${String(item.code)}`;
@@ -229,6 +232,16 @@ SIZE_STOCK.forEach(item=>{
   const sizeMap=STOCK_BY_PRODUCT_SIZE.get(key);
   const size=item.size||"Único";
   sizeMap.set(size,(sizeMap.get(size)||0)+num(item.quantity));
+});
+
+REAL_SIZE_PENDING.forEach(item=>{
+  const key=`${item.store}|${String(item.code)}`;
+  if(!PENDING_BY_PRODUCT_SIZE.has(key)){
+    PENDING_BY_PRODUCT_SIZE.set(key,new Map());
+  }
+  const sizeMap=PENDING_BY_PRODUCT_SIZE.get(key);
+  const size=item.size||"Único";
+  sizeMap.set(size,(sizeMap.get(size)||0)+num(item.incoming));
 });
 
 function allocateIntegerByWeights(total,weights){
@@ -252,43 +265,26 @@ function getSizeBreakdown(record,store){
   const key=`${store}|${String(record.codigo)}`;
   const historyMap=REAL_HISTORY_BY_PRODUCT_SIZE.get(key)||new Map();
   const stockMap=STOCK_BY_PRODUCT_SIZE.get(key)||new Map();
+  const pendingMap=PENDING_BY_PRODUCT_SIZE.get(key)||new Map();
 
   const sizes=[...new Set([
     ...historyMap.keys(),
-    ...stockMap.keys()
+    ...stockMap.keys(),
+    ...pendingMap.keys()
   ])];
 
   if(!sizes.length)sizes.push("Único");
 
-  const sd=record.lojas?.[store]||{historico:0,estoque:0,aReceber:0};
-  const incomingTotal=num(sd.aReceber);
-
-  const positiveHistory=sizes.map(size=>Math.max(0,num(historyMap.get(size)||0)));
-  const historyWeightTotal=positiveHistory.reduce((a,b)=>a+b,0);
-
-  const positiveStock=sizes.map(size=>Math.max(0,num(stockMap.get(size)||0)));
-  const stockWeightTotal=positiveStock.reduce((a,b)=>a+b,0);
-
-  let weights;
-  if(historyWeightTotal>0){
-    weights=positiveHistory.map(value=>value/historyWeightTotal);
-  }else if(stockWeightTotal>0){
-    weights=positiveStock.map(value=>value/stockWeightTotal);
-  }else{
-    weights=sizes.map(()=>1/sizes.length);
-  }
-
-  const incomingBySize=allocateIntegerByWeights(incomingTotal,weights);
   const configuration=cfg();
 
   return sizes
-    .map((size,index)=>{
+    .map(size=>{
       const historical=num(historyMap.get(size)||0);
       const demand=Math.ceil(
         historical*(1+configuration.growth)*(1+configuration.safety)
       );
       const stock=num(stockMap.get(size)||0);
-      const incoming=incomingBySize[index];
+      const incoming=num(pendingMap.get(size)||0);
       const raw=Math.max(0,demand-stock-incoming);
       const buy=Math.ceil(raw/configuration.multiple)*configuration.multiple;
 
@@ -470,9 +466,47 @@ function applyPreloadedStock(){
   });
 }
 
-function applyPreloadedPending(){ensureStoreData();Object.entries(window.PRELOADED_PENDING||{}).forEach(([k,q])=>{const [st,ref]=k.split("|");let r=data.find(x=>String(x.codigo)===ref);if(!r){r={codigo:ref,descricao:"Produto pendente",linha:"",tipo:"",lojas:{}};STORES.forEach(s=>r.lojas[s]={historico:0,estoque:0,aReceber:0});data.push(r)}r.lojas[st].aReceber=num(q)})}
+function applyPreloadedPending(){ensureStoreData();Object.entries(window.PRELOADED_PENDING||{}).forEach(([k,q])=>{const [st,ref]=k.split("|");let r=data.find(x=>String(x.codigo)===ref);if(!r){
+  r={
+    codigo:ref,
+    descricao:
+      window.REAL_HISTORY_DESCRIPTIONS?.[ref] ||
+      window.PRODUCT_DESCRIPTIONS?.[ref] ||
+      "Produto sem descrição",
+    linha:"",
+    tipo:"",
+    lojas:{}
+  };
+  STORES.forEach(s=>r.lojas[s]={historico:0,estoque:0,aReceber:0});
+  data.push(r)
+}else if(
+  (window.REAL_HISTORY_DESCRIPTIONS?.[ref] || window.PRODUCT_DESCRIPTIONS?.[ref]) &&
+  (!r.descricao || r.descricao==="Produto pendente" || r.descricao==="Produto sem descrição")
+){
+  r.descricao=window.REAL_HISTORY_DESCRIPTIONS?.[ref] || window.PRODUCT_DESCRIPTIONS?.[ref];
+}
+r.lojas[st].aReceber=num(q)})}
 function parsePendingConsolidated(matrix){const h=matrix[0].map(norm),cis=[];h.forEach((v,i)=>{if(v==="cor")cis.push(i)});const ix={co:h.findIndex(v=>v.includes("razaosocial")),m:h.findIndex(v=>v==="material"),cc:cis[0]??-1,cn:cis[1]??cis[0]??-1,t:h.findIndex(v=>v.includes("tam")),q:h.findIndex(v=>v==="qtdov")};if(ix.co<0||ix.m<0||ix.cc<0||ix.q<0)throw new Error("Colunas obrigatórias não encontradas.");const cm={"POLIS CIANE LTDA":"ciane","POLIS ESPLANADA COMERCIAL LTDA":"esplanada","POLIS ITAPETININGA COMERCIAL LTDA":"itape","J P P COMERCIO EIRELI":"tatui"},o=[];for(let i=1;i<matrix.length;i++){const r=matrix[i],st=cm[String(r[ix.co]||"").trim().toUpperCase()],cn=String(r[ix.cn]||"").trim(),sz=String(r[ix.t]||"").trim();if(!st||!cn||!sz)continue;const mat=cleanCode(r[ix.m]),cc=String(r[ix.cc]||"").trim().padStart(4,"0"),ref=window.PENDING_MATERIAL_COLOR_TO_REF?.[`${mat}|${cc}`],q=num(r[ix.q]);if(ref&&q>0)o.push({st,ref,q})}return o}
-async function importPendingConsolidated(file,statusEl){try{const rows=parsePendingConsolidated(await readSheet(file));if(!rows.length)throw new Error("Nenhum produto válido encontrado.");ensureStoreData();STORES.forEach(s=>data.forEach(r=>{if(r.lojas?.[s])r.lojas[s].aReceber=0}));const t=new Map();rows.forEach(x=>{const k=`${x.st}|${x.ref}`;t.set(k,(t.get(k)||0)+x.q)});t.forEach((q,k)=>{const [st,ref]=k.split("|");let r=data.find(x=>String(x.codigo)===ref);if(!r){r={codigo:ref,descricao:"Produto pendente",linha:"",tipo:"",lojas:{}};STORES.forEach(s=>r.lojas[s]={historico:0,estoque:0,aReceber:0});data.push(r)}r.lojas[st].aReceber=q});persist();render();statusEl.textContent=`${file.name}: ${t.size} produtos e ${nf.format(rows.reduce((a,x)=>a+x.q,0))} unidades.`}catch(e){statusEl.textContent="Erro: "+e.message}}
+async function importPendingConsolidated(file,statusEl){try{const rows=parsePendingConsolidated(await readSheet(file));if(!rows.length)throw new Error("Nenhum produto válido encontrado.");ensureStoreData();STORES.forEach(s=>data.forEach(r=>{if(r.lojas?.[s])r.lojas[s].aReceber=0}));const t=new Map();rows.forEach(x=>{const k=`${x.st}|${x.ref}`;t.set(k,(t.get(k)||0)+x.q)});t.forEach((q,k)=>{const [st,ref]=k.split("|");let r=data.find(x=>String(x.codigo)===ref);if(!r){
+  r={
+    codigo:ref,
+    descricao:
+      window.REAL_HISTORY_DESCRIPTIONS?.[ref] ||
+      window.PRODUCT_DESCRIPTIONS?.[ref] ||
+      "Produto sem descrição",
+    linha:"",
+    tipo:"",
+    lojas:{}
+  };
+  STORES.forEach(s=>r.lojas[s]={historico:0,estoque:0,aReceber:0});
+  data.push(r)
+}else if(
+  (window.REAL_HISTORY_DESCRIPTIONS?.[ref] || window.PRODUCT_DESCRIPTIONS?.[ref]) &&
+  (!r.descricao || r.descricao==="Produto pendente" || r.descricao==="Produto sem descrição")
+){
+  r.descricao=window.REAL_HISTORY_DESCRIPTIONS?.[ref] || window.PRODUCT_DESCRIPTIONS?.[ref];
+}
+r.lojas[st].aReceber=q});persist();render();statusEl.textContent=`${file.name}: ${t.size} produtos e ${nf.format(rows.reduce((a,x)=>a+x.q,0))} unidades.`}catch(e){statusEl.textContent="Erro: "+e.message}}
 
 function cleanCode(v){
   if(v===null||v===undefined||v==="")return "";

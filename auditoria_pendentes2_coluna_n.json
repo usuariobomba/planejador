@@ -1,0 +1,66 @@
+{
+  "novo_arquivo": "LUCAO PRODUTOS PENDENTES2.xlsx",
+  "regra_quantidade": "coluna N",
+  "linhas_detalhadas": 163,
+  "pendentes_por_loja": {
+    "ciane": 804,
+    "esplanada": 720,
+    "itape": 480,
+    "tatui": 684
+  },
+  "pendentes_total": 2688,
+  "grades_utilizadas": {
+    "F83": 67,
+    "B6": 8,
+    "M85": 8,
+    "I0": 12,
+    "I25": 8,
+    "M4": 7,
+    "F82": 36,
+    "F0": 5,
+    "B5": 4,
+    "M80": 3,
+    "334": 1,
+    "356": 1,
+    "378": 1,
+    "390": 1,
+    "434": 1
+  },
+  "totais_sistema": {
+    "vendaLY": 86046,
+    "demandaProjetada": 86046,
+    "estoqueAtual": 28593,
+    "aReceber": 2688,
+    "compraSugerida": 67322
+  },
+  "por_loja": {
+    "tatui": {
+      "vendaLY": 17980,
+      "demandaProjetada": 17980,
+      "estoqueAtual": 6715,
+      "aReceber": 684,
+      "compraSugerida": 14159
+    },
+    "esplanada": {
+      "vendaLY": 34025,
+      "demandaProjetada": 34025,
+      "estoqueAtual": 8240,
+      "aReceber": 720,
+      "compraSugerida": 27858
+    },
+    "ciane": {
+      "vendaLY": 21436,
+      "demandaProjetada": 21436,
+      "estoqueAtual": 7335,
+      "aReceber": 804,
+      "compraSugerida": 16423
+    },
+    "itape": {
+      "vendaLY": 12605,
+      "demandaProjetada": 12605,
+      "estoqueAtual": 6303,
+      "aReceber": 480,
+      "compraSugerida": 8882
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "causa_identificada": "applyPreloadedPending criava produtos exclusivos de pendentes com descricao fixa 'Produto pendente'",
+  "correcao": "applyPreloadedPending agora consulta REAL_HISTORY_DESCRIPTIONS e PRODUCT_DESCRIPTIONS antes do fallback",
+  "codigos_amostrados_validados": 25,
+  "codigos_amostrados_sem_descricao": [],
+  "app_data_version": "v8"
+}
