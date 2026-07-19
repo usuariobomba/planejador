@@ -1,0 +1,39 @@
+{
+  "totais": {
+    "vendaLY": 86046,
+    "demandaProjetada": 86046,
+    "estoqueAtual": 28593,
+    "aReceber": 2712,
+    "compraSugerida": 67295
+  },
+  "por_loja": {
+    "tatui": {
+      "vendaLY": 17980,
+      "demandaProjetada": 17980,
+      "estoqueAtual": 6715,
+      "aReceber": 684,
+      "compraSugerida": 14146
+    },
+    "ciane": {
+      "vendaLY": 21436,
+      "demandaProjetada": 21436,
+      "estoqueAtual": 7335,
+      "aReceber": 828,
+      "compraSugerida": 16409
+    },
+    "itape": {
+      "vendaLY": 12605,
+      "demandaProjetada": 12605,
+      "estoqueAtual": 6303,
+      "aReceber": 480,
+      "compraSugerida": 8882
+    },
+    "esplanada": {
+      "vendaLY": 34025,
+      "demandaProjetada": 34025,
+      "estoqueAtual": 8240,
+      "aReceber": 720,
+      "compraSugerida": 27858
+    }
+  }
+}

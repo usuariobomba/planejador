@@ -1,3 +1,5 @@
-# Planejamento de Compras — exportação sem pop-up
+# Planejamento de Compras — dashboard ajustado
 
-A exportação por tamanho foi mantida com os mesmos cálculos e totais, sem exibir mensagem de sucesso ou qualquer pop-up ao baixar o arquivo.
+Alteração:
+- Removido o bloco "Unidades vendidas por loja" do dashboard inicial.
+- Demais funcionalidades mantidas.

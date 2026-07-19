@@ -71,7 +71,7 @@
       </div>
       <div class="grid2">
         <div class="card panel"><h3>Produtos com maior necessidade de compra</h3><div class="chart-wrap"><canvas id="chartNecessidade"></canvas></div></div>
-        <div class="card panel"><h3>Unidades vendidas por loja</h3><div class="chart-wrap"><canvas id="chartLojas"></canvas></div></div>
+        
       </div>
       <div class="card table-card" style="margin-top:16px">
         <div class="table-head"><div><b>Resumo individual por loja</b><div class="footer-note">Cada compra é calculada separadamente antes da consolidação.</div></div></div>
@@ -91,7 +91,7 @@
 
     <section id="tamanhos" class="view">
       <div class="notice">
-        A exportação completa inclui todas as linhas necessárias para que Venda LY, Demanda, Estoque, A receber e Compra sugerida sejam exatamente iguais aos totais do dashboard.
+        A venda LY e a demanda agora são calculadas com o histórico real de cada tamanho. A compra sugerida considera a falta específica de cada tamanho.
       </div>
 
       <div class="settings card panel">
@@ -171,6 +171,7 @@
 <script src="historico.js"></script>
 <script src="catalogos.js"></script>
 <script src="estoque_tamanhos.js"></script>
+<script src="historico_tamanhos_real.js"></script>
 <script>
 const initialData = window.HISTORICO_INICIAL || [];
 let data = JSON.parse(localStorage.getItem("planejamentoComprasData") || "null") || structuredClone(initialData);
@@ -191,7 +192,7 @@ function ensureStoreData(){
   });
 }
 ensureStoreData();
-const APP_DATA_VERSION="base-final-completa-2026-07-15-v1";
+const APP_DATA_VERSION="historico-real-por-tamanho-funcional-2026-07-19-v3";
 if(localStorage.getItem("planejamentoComprasVersion")!==APP_DATA_VERSION){
   data=structuredClone(initialData);
   localStorage.removeItem("planejamentoComprasData");
@@ -201,15 +202,122 @@ applyPreloadedPending();
 applyPreloadedStock();
 applyPreloadedHistory();
 function cfg(){return {store:document.querySelector("#lojaSelecionada").value,growth:num(document.querySelector("#crescimento").value)/100,safety:num(document.querySelector("#seguranca").value)/100,multiple:Math.max(1,num(document.querySelector("#multiplo").value)||1)}}
-function calcStore(r,store){
-  const c=cfg(), sd=r.lojas[store]||{historico:0,estoque:0,aReceber:0};
-  const hist=num(sd.historico);
-  const demand=Math.ceil(hist*(1+c.growth)*(1+c.safety));
-  const raw=Math.max(0,demand-num(sd.estoque)-num(sd.aReceber));
-  const buy=Math.ceil(raw/c.multiple)*c.multiple;
-  const coverage=demand?((num(sd.estoque)+num(sd.aReceber))/demand):1;
-  return {hist,demand,estoque:num(sd.estoque),aReceber:num(sd.aReceber),buy,coverage};
+
+
+const REAL_SIZE_HISTORY=window.REAL_SIZE_HISTORY||[];
+const SIZE_STOCK=window.SIZE_STOCK||[];
+
+// Índices criados uma única vez para evitar milhares de .filter() a cada renderização.
+const REAL_HISTORY_BY_PRODUCT_SIZE=new Map();
+const STOCK_BY_PRODUCT_SIZE=new Map();
+
+REAL_SIZE_HISTORY.forEach(item=>{
+  const key=`${item.store}|${String(item.code)}`;
+  if(!REAL_HISTORY_BY_PRODUCT_SIZE.has(key)){
+    REAL_HISTORY_BY_PRODUCT_SIZE.set(key,new Map());
+  }
+  const sizeMap=REAL_HISTORY_BY_PRODUCT_SIZE.get(key);
+  const size=item.size||"Único";
+  sizeMap.set(size,(sizeMap.get(size)||0)+num(item.historical));
+});
+
+SIZE_STOCK.forEach(item=>{
+  const key=`${item.store}|${String(item.code)}`;
+  if(!STOCK_BY_PRODUCT_SIZE.has(key)){
+    STOCK_BY_PRODUCT_SIZE.set(key,new Map());
+  }
+  const sizeMap=STOCK_BY_PRODUCT_SIZE.get(key);
+  const size=item.size||"Único";
+  sizeMap.set(size,(sizeMap.get(size)||0)+num(item.quantity));
+});
+
+function allocateIntegerByWeights(total,weights){
+  const roundedTotal=Math.round(num(total));
+  const exact=weights.map(weight=>roundedTotal*weight);
+  const allocated=exact.map(value=>Math.floor(value));
+  let remainder=roundedTotal-allocated.reduce((sum,value)=>sum+value,0);
+
+  const order=exact
+    .map((value,index)=>({index,fraction:value-allocated[index]}))
+    .sort((a,b)=>b.fraction-a.fraction);
+
+  for(let i=0;i<remainder;i++){
+    allocated[order[i%order.length].index]++;
+  }
+
+  return allocated;
 }
+
+function getSizeBreakdown(record,store){
+  const key=`${store}|${String(record.codigo)}`;
+  const historyMap=REAL_HISTORY_BY_PRODUCT_SIZE.get(key)||new Map();
+  const stockMap=STOCK_BY_PRODUCT_SIZE.get(key)||new Map();
+
+  const sizes=[...new Set([
+    ...historyMap.keys(),
+    ...stockMap.keys()
+  ])];
+
+  if(!sizes.length)sizes.push("Único");
+
+  const sd=record.lojas?.[store]||{historico:0,estoque:0,aReceber:0};
+  const incomingTotal=num(sd.aReceber);
+
+  const positiveHistory=sizes.map(size=>Math.max(0,num(historyMap.get(size)||0)));
+  const historyWeightTotal=positiveHistory.reduce((a,b)=>a+b,0);
+
+  const positiveStock=sizes.map(size=>Math.max(0,num(stockMap.get(size)||0)));
+  const stockWeightTotal=positiveStock.reduce((a,b)=>a+b,0);
+
+  let weights;
+  if(historyWeightTotal>0){
+    weights=positiveHistory.map(value=>value/historyWeightTotal);
+  }else if(stockWeightTotal>0){
+    weights=positiveStock.map(value=>value/stockWeightTotal);
+  }else{
+    weights=sizes.map(()=>1/sizes.length);
+  }
+
+  const incomingBySize=allocateIntegerByWeights(incomingTotal,weights);
+  const configuration=cfg();
+
+  return sizes
+    .map((size,index)=>{
+      const historical=num(historyMap.get(size)||0);
+      const demand=Math.ceil(
+        historical*(1+configuration.growth)*(1+configuration.safety)
+      );
+      const stock=num(stockMap.get(size)||0);
+      const incoming=incomingBySize[index];
+      const raw=Math.max(0,demand-stock-incoming);
+      const buy=Math.ceil(raw/configuration.multiple)*configuration.multiple;
+
+      return {
+        size,
+        historical,
+        demand,
+        stock,
+        incoming,
+        buy
+      };
+    })
+    .sort((a,b)=>a.size.localeCompare(b.size,"pt-BR",{numeric:true}));
+}
+
+function calcStore(r,store){
+
+  const rows=getSizeBreakdown(r,store);
+
+  const hist=rows.reduce((sum,item)=>sum+item.historical,0);
+  const demand=rows.reduce((sum,item)=>sum+item.demand,0);
+  const estoque=rows.reduce((sum,item)=>sum+item.stock,0);
+  const aReceber=rows.reduce((sum,item)=>sum+item.incoming,0);
+  const buy=rows.reduce((sum,item)=>sum+item.buy,0);
+  const coverage=demand?((estoque+aReceber)/demand):1;
+
+  return {hist,demand,estoque,aReceber,buy,coverage};
+}
+
 function calc(r){
   const c=cfg();
   if(c.store!=="todas"){
@@ -290,10 +398,20 @@ function detectHeaderMap(row,type){
 
 
 
+
 function applyPreloadedHistory(){
   ensureStoreData();
 
-  Object.entries(window.PRELOADED_HISTORY||{}).forEach(([key,quantity])=>{
+  // Zera históricos antes de aplicar a nova fonte oficial.
+  data.forEach(record=>{
+    STORES.forEach(store=>{
+      if(record.lojas?.[store]){
+        record.lojas[store].historico=0;
+      }
+    });
+  });
+
+  Object.entries(window.REAL_PRODUCT_HISTORY||{}).forEach(([key,quantity])=>{
     const [store,reference]=key.split("|");
     let record=data.find(item=>String(item.codigo)===reference);
 
@@ -301,7 +419,7 @@ function applyPreloadedHistory(){
       record={
         codigo:reference,
         descricao:
-          window.HISTORY_DESCRIPTIONS?.[reference] ||
+          window.REAL_HISTORY_DESCRIPTIONS?.[reference] ||
           window.PRODUCT_DESCRIPTIONS?.[reference] ||
           "Produto sem descrição",
         linha:"",
@@ -314,20 +432,14 @@ function applyPreloadedHistory(){
       });
 
       data.push(record);
-    }else if(
-      window.HISTORY_DESCRIPTIONS?.[reference] &&
-      (
-        !record.descricao ||
-        record.descricao==="Produto pendente" ||
-        record.descricao==="Produto sem descrição"
-      )
-    ){
-      record.descricao=window.HISTORY_DESCRIPTIONS[reference];
+    }else if(window.REAL_HISTORY_DESCRIPTIONS?.[reference]){
+      record.descricao=window.REAL_HISTORY_DESCRIPTIONS[reference];
     }
 
     record.lojas[store].historico=num(quantity);
   });
 }
+
 
 function applyPreloadedStock(){
   ensureStoreData();
@@ -549,7 +661,7 @@ function exportCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="recomendacao_de_compra.csv";a.click();URL.revokeObjectURL(a.href)
 }
 
-const SIZE_STOCK=window.SIZE_STOCK||[];
+
 
 function populateSizeFilter(){
   const select=document.querySelector("#sizeFilter");
@@ -670,90 +782,26 @@ function allocateRecommendationBySize(record,store,result,eligibleSizes){
 
 
 
+
 function exportSizeStockCSV(){
   const selectedStore=document.querySelector("#sizeStore")?.value||"todas";
-
-  // A exportação completa ignora busca e filtro de tamanho para garantir
-  // que seus totais sejam diretamente comparáveis ao dashboard.
   const storesToExport=selectedStore==="todas"
     ? STORES
     : [selectedStore];
 
   const output=[];
-  const expected={
-    vendaLY:0,
-    demandaProjetada:0,
-    estoqueAtual:0,
-    aReceber:0,
-    compraSugerida:0
-  };
 
   storesToExport.forEach(store=>{
     data.forEach(record=>{
-      const result=calcStore(record,store);
-
-      expected.vendaLY+=result.hist;
-      expected.demandaProjetada+=result.demand;
-      expected.estoqueAtual+=result.estoque;
-      expected.aReceber+=result.aReceber;
-      expected.compraSugerida+=result.buy;
-
-      // Não cria linhas completamente vazias.
-      const contributes=
-        result.hist!==0 ||
-        result.demand!==0 ||
-        result.estoque!==0 ||
-        result.aReceber!==0 ||
-        result.buy!==0;
-
-      if(!contributes)return;
-
-      const allSizeRows=SIZE_STOCK.filter(item=>
-        item.store===store &&
-        String(item.code)===String(record.codigo)
-      );
-
-      // Consolida tamanhos repetidos, preservando o estoque exato da grade.
-      const sizeMap=new Map();
-      allSizeRows.forEach(item=>{
-        const label=item.size||"Único";
-
-        if(!sizeMap.has(label)){
-          sizeMap.set(label,{
-            size:label,
-            quantity:0
-          });
-        }
-
-        sizeMap.get(label).quantity+=num(item.quantity);
-      });
-
-      let eligibleSizes=[...sizeMap.values()];
-
-      // Produtos sem grade identificada são representados por uma linha única.
-      if(!eligibleSizes.length){
-        eligibleSizes=[{
-          size:"Único",
-          quantity:result.estoque
-        }];
-      }
-
-      const allocated=allocateRecommendationBySize(
-        record,
-        store,
-        result,
-        eligibleSizes
-      );
-
-      allocated.forEach(item=>{
-        const rowContributes=
+      getSizeBreakdown(record,store).forEach(item=>{
+        const contributes=
           item.historical!==0 ||
           item.demand!==0 ||
           item.stock!==0 ||
           item.incoming!==0 ||
           item.buy!==0;
 
-        if(!rowContributes)return;
+        if(!contributes)return;
 
         output.push({
           loja:STORE_NAMES[store],
@@ -769,34 +817,6 @@ function exportSizeStockCSV(){
       });
     });
   });
-
-  const exported=output.reduce((totals,row)=>({
-    vendaLY:totals.vendaLY+num(row.vendaLY),
-    demandaProjetada:totals.demandaProjetada+num(row.demandaProjetada),
-    estoqueAtual:totals.estoqueAtual+num(row.estoqueAtual),
-    aReceber:totals.aReceber+num(row.aReceber),
-    compraSugerida:totals.compraSugerida+num(row.compraSugerida)
-  }),{
-    vendaLY:0,
-    demandaProjetada:0,
-    estoqueAtual:0,
-    aReceber:0,
-    compraSugerida:0
-  });
-
-  const fields=[
-    ["Venda LY","vendaLY"],
-    ["Demanda Projetada","demandaProjetada"],
-    ["Estoque atual","estoqueAtual"],
-    ["A receber","aReceber"],
-    ["Compra sugerida","compraSugerida"]
-  ];
-
-  const mismatches=fields.filter(([,key])=>
-    Math.round(exported[key])!==Math.round(expected[key])
-  );
-
-  
 
   output.sort((a,b)=>
     a.loja.localeCompare(b.loja,"pt-BR") ||
@@ -839,22 +859,52 @@ function exportSizeStockCSV(){
 
   const link=document.createElement("a");
   link.href=URL.createObjectURL(blob);
-  link.download="recomendacao_compra_por_tamanho_conferida.csv";
+  link.download="recomendacao_compra_por_tamanho_real.csv";
   link.click();
   URL.revokeObjectURL(link.href);
+}
 
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".nav button,.view").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+
+  const target=document.querySelector("#"+b.dataset.view);
+  if(target)target.classList.add("active");
+
+  const titles={
+    dashboard:["Visão geral","Indicadores principais e recomendação de compras."],
+    produtos:["Produtos e recomendação","Detalhamento auditável por código de produto."],
+    tamanhos:["Estoque por tamanho","Consulte a disponibilidade exata por loja, produto e grade."],
+    importar:["Importar planilhas","Importe histórico, estoque atual e produtos a receber."]
+  };
+
+  if(titles[b.dataset.view]){
+    const title=document.querySelector("#pageTitle");
+    const subtitle=document.querySelector("#pageSubtitle");
+    if(title)title.textContent=titles[b.dataset.view][0];
+    if(subtitle)subtitle.textContent=titles[b.dataset.view][1];
   }
 
-
-
-
-
-document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button,.view").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.querySelector("#"+b.dataset.view).classList.add("active");const titles={dashboard:["Visão geral","Indicadores principais e recomendação de compras."],produtos:["Produtos e recomendação","Detalhamento auditável por código de produto."],tamanhos:["Estoque por tamanho","Consulte a disponibilidade exata por loja, produto e grade."],importar:["Importar planilhas","Importe histórico, estoque atual e produtos a receber."]};document.querySelector("#pageTitle").textContent=titles[b.dataset.view][0];document.querySelector("#pageSubtitle").textContent=titles[b.dataset.view][1];if(b.dataset.view==="tamanhos")renderSizeStock()});
-["lojaSelecionada","crescimento","seguranca","multiplo"].forEach(id=>document.querySelector("#"+id).addEventListener("input",render));
-document.querySelector("#searchInput").addEventListener("input",()=>renderTable(computed()));
-["sizeStore","sizeFilter","sizeSearch"].forEach(id=>{
-  document.querySelector("#"+id)?.addEventListener("input",renderSizeStock);
+  if(b.dataset.view==="tamanhos"){
+    renderSizeStock();
+  }
 });
+
+["lojaSelecionada","crescimento","seguranca","multiplo"].forEach(id=>{
+  const element=document.querySelector("#"+id);
+  if(element)element.addEventListener("input",render);
+});
+
+const searchInput=document.querySelector("#searchInput");
+if(searchInput){
+  searchInput.addEventListener("input",()=>renderTable(computed()));
+}
+
+["sizeStore","sizeFilter","sizeSearch"].forEach(id=>{
+  const element=document.querySelector("#"+id);
+  if(element)element.addEventListener("input",renderSizeStock);
+});
+
 document.querySelector("#seguranca").value=0;
 populateSizeFilter();
 renderSizeStock();
