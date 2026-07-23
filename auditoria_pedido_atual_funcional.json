@@ -1,0 +1,21 @@
+{
+  "pedido_atual_por_loja": {
+    "ciane": 20334,
+    "esplanada": 33540,
+    "itape": 9718,
+    "tatui": 16290
+  },
+  "pedido_atual_total": 79882,
+  "correcao_interface": "reconstruída sobre a última versão funcional, preservando o bloco original de eventos",
+  "verificacoes": {
+    "usa_cfg_no_breakdown": true,
+    "nao_chama_growth_inexistente": true,
+    "nao_chama_safety_inexistente": true,
+    "nao_chama_multiple_inexistente": true,
+    "listeners_navegacao_presentes": true,
+    "listener_export_present": true,
+    "listener_import_history": true,
+    "pedido_atual_script": true
+  },
+  "javascript_sintaxe_valida": true
+}

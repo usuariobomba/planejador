@@ -1,0 +1,39 @@
+{
+  "datasets_zerados": {
+    "HISTORICO_INICIAL": 0,
+    "PRELOADED_STOCK": 0,
+    "PRELOADED_PENDING": 0,
+    "SIZE_STOCK": 0,
+    "REAL_SIZE_HISTORY": 0,
+    "REAL_PRODUCT_HISTORY": 0,
+    "REAL_HISTORY_DESCRIPTIONS": 0,
+    "REAL_SIZE_PENDING": 0
+  },
+  "inputs_upload_detectados": [
+    "<input id=\"historyFile\" type=\"file\" accept=\".xls,.xlsx,.csv\">",
+    "<input id=\"stockFile\" type=\"file\" accept=\".xls,.xlsx,.csv\">",
+    "<input id=\"incomingFile\" type=\"file\" accept=\".xls,.xlsx,.csv\">"
+  ],
+  "app_data_version_atualizada": true,
+  "javascript_valido": true,
+  "reset_report": {
+    "historico.js": {
+      "PRELOADED_HISTORY": 0
+    },
+    "estoque_tamanhos.js": {
+      "SIZE_STOCK": 1
+    },
+    "historico_tamanhos_real.js": {
+      "REAL_SIZE_HISTORY": 1,
+      "REAL_PRODUCT_HISTORY": 1,
+      "REAL_HISTORY_DESCRIPTIONS": 1
+    },
+    "pendentes_tamanhos_real.js": {
+      "REAL_SIZE_PENDING": 1
+    },
+    "catalogos.js": {
+      "PRELOADED_PENDING": 1,
+      "PRELOADED_STOCK": 1
+    }
+  }
+}

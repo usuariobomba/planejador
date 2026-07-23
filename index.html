@@ -65,17 +65,17 @@
       </div>
       <div class="kpis">
         <div class="card kpi"><span>Demanda projetada</span><strong id="kpiDemanda">—</strong><small>Unidades previstas para o período</small></div>
-        <div class="card kpi"><span>Estoque + a receber</span><strong id="kpiDisponivel">—</strong><small>Cobertura disponível</small></div>
-        <div class="card kpi"><span>Compra sugerida</span><strong id="kpiCompra">—</strong><small>Unidades necessárias</small></div>
+        <div class="card kpi"><span>Estoque + a receber + pedido atual</span><strong id="kpiDisponivel">—</strong><small>Cobertura total considerada</small></div>
+        <div class="card kpi"><span>Necessidade adicional</span><strong id="kpiCompra">—</strong><small>Após considerar o pedido atual</small></div>
         <div class="card kpi"><span>Produtos para comprar</span><strong id="kpiProdutosComprar">—</strong><small>Códigos com necessidade de compra</small></div>
       </div>
       <div class="grid2">
-        <div class="card panel"><h3>Produtos com maior necessidade de compra</h3><div class="chart-wrap"><canvas id="chartNecessidade"></canvas></div></div>
+        <div class="card panel"><h3>Produtos com maior necessidade adicional</h3><div class="chart-wrap"><canvas id="chartNecessidade"></canvas></div></div>
         
       </div>
       <div class="card table-card" style="margin-top:16px">
         <div class="table-head"><div><b>Resumo individual por loja</b><div class="footer-note">Cada compra é calculada separadamente antes da consolidação.</div></div></div>
-        <div class="table-scroll" style="max-height:none"><table><thead><tr><th>Loja</th><th>Unidades vendidas</th><th>Demanda projetada</th><th>Estoque</th><th>A receber</th><th>Compra sugerida</th></tr></thead><tbody id="storeSummaryRows"></tbody></table></div>
+        <div class="table-scroll" style="max-height:none"><table><thead><tr><th>Loja</th><th>Unidades vendidas</th><th>Demanda projetada</th><th>Estoque</th><th>A receber</th><th>Pedido atual</th><th>Necessidade adicional</th></tr></thead><tbody id="storeSummaryRows"></tbody></table></div>
       </div>
     </section>
 
@@ -83,7 +83,7 @@
       <div class="card table-card">
         <div class="table-head"><div><b>Recomendação detalhada</b><div class="footer-note" id="rowCount"></div></div><input class="search" id="searchInput" placeholder="Buscar código, produto, linha ou tipo..."></div>
         <div class="table-scroll"><table><thead><tr>
-          <th>Código</th><th>Produto</th><th>Unidades vendidas</th><th>Demanda</th><th>Estoque</th><th>A receber</th><th>Comprar</th><th>Situação</th>
+          <th>Código</th><th>Produto</th><th>Unidades vendidas</th><th>Demanda</th><th>Estoque</th><th>A receber</th><th>Pedido atual</th><th>Necessidade adicional</th><th>Situação</th>
         </tr></thead><tbody id="productRows"></tbody></table></div>
       </div>
     </section>
@@ -91,7 +91,7 @@
 
     <section id="tamanhos" class="view">
       <div class="notice">
-        A venda LY e a demanda agora são calculadas com o histórico real de cada tamanho. A compra sugerida considera a falta específica de cada tamanho.
+        A venda LY e a demanda são calculadas pelo histórico real de cada tamanho. A necessidade adicional considera estoque, a receber e o Pedido Atual de cada tamanho.
       </div>
 
       <div class="settings card panel">
@@ -173,6 +173,8 @@
 <script src="estoque_tamanhos.js"></script>
 <script src="historico_tamanhos_real.js"></script>
 <script src="pendentes_tamanhos_real.js"></script>
+<script src="pedido_atual_tamanhos.js"></script>
+<script src="pedido_atual_produtos.js"></script>
 <script>
 const initialData = window.HISTORICO_INICIAL || [];
 let data = JSON.parse(localStorage.getItem("planejamentoComprasData") || "null") || structuredClone(initialData);
@@ -193,7 +195,7 @@ function ensureStoreData(){
   });
 }
 ensureStoreData();
-const APP_DATA_VERSION="pendentes2-coluna-n-descricoes-export-fix-2026-07-19-v8";
+const APP_DATA_VERSION="pedido-atual-nomes-completos-2026-07-23-v4";
 if(localStorage.getItem("planejamentoComprasVersion")!==APP_DATA_VERSION){
   data=structuredClone(initialData);
   localStorage.removeItem("planejamentoComprasData");
@@ -202,6 +204,39 @@ if(localStorage.getItem("planejamentoComprasVersion")!==APP_DATA_VERSION){
 applyPreloadedPending();
 applyPreloadedStock();
 applyPreloadedHistory();
+
+function applyCurrentOrderProducts(){
+  const descriptions=window.CURRENT_ORDER_DESCRIPTIONS||{};
+  const codes=[...new Set((window.CURRENT_ORDER_SIZE||[]).map(x=>String(x.code)))];
+  const byCode=new Map(data.map(r=>[String(r.codigo),r]));
+
+  codes.forEach(code=>{
+    let r=byCode.get(code);
+    if(!r){
+      r={
+        codigo:code,
+        descricao:descriptions[code]||`Produto ${code}`,
+        linha:"",
+        tipo:"",
+        lojas:{}
+      };
+      STORES.forEach(st=>r.lojas[st]={historico:0,estoque:0,aReceber:0});
+      data.push(r);
+      byCode.set(code,r);
+    }else if(
+      descriptions[code] &&
+      (
+        !r.descricao ||
+        r.descricao==="Produto pendente" ||
+        r.descricao==="Produto sem descrição" ||
+        /^Produto\s+\d+$/.test(String(r.descricao).trim())
+      )
+    ){
+      r.descricao=descriptions[code];
+    }
+  });
+}
+applyCurrentOrderProducts();
 function cfg(){return {store:document.querySelector("#lojaSelecionada").value,growth:num(document.querySelector("#crescimento").value)/100,safety:num(document.querySelector("#seguranca").value)/100,multiple:Math.max(1,num(document.querySelector("#multiplo").value)||1)}}
 
 
@@ -212,6 +247,17 @@ const REAL_SIZE_PENDING=window.REAL_SIZE_PENDING||[];
 // Índices criados uma única vez para evitar milhares de buscas a cada renderização.
 const REAL_HISTORY_BY_PRODUCT_SIZE=new Map();
 const STOCK_BY_PRODUCT_SIZE=new Map();
+const CURRENT_ORDER_BY_PRODUCT_SIZE=new Map();
+(window.CURRENT_ORDER_SIZE||[]).forEach(item=>{
+  const key=`${item.store}|${String(item.code)}`;
+  if(!CURRENT_ORDER_BY_PRODUCT_SIZE.has(key)){
+    CURRENT_ORDER_BY_PRODUCT_SIZE.set(key,new Map());
+  }
+  const sizeMap=CURRENT_ORDER_BY_PRODUCT_SIZE.get(key);
+  const size=item.size||"Único";
+  sizeMap.set(size,(sizeMap.get(size)||0)+num(item.currentOrder));
+});
+
 const PENDING_BY_PRODUCT_SIZE=new Map();
 
 REAL_SIZE_HISTORY.forEach(item=>{
@@ -266,11 +312,13 @@ function getSizeBreakdown(record,store){
   const historyMap=REAL_HISTORY_BY_PRODUCT_SIZE.get(key)||new Map();
   const stockMap=STOCK_BY_PRODUCT_SIZE.get(key)||new Map();
   const pendingMap=PENDING_BY_PRODUCT_SIZE.get(key)||new Map();
+  const orderMap=CURRENT_ORDER_BY_PRODUCT_SIZE.get(key)||new Map();
 
   const sizes=[...new Set([
     ...historyMap.keys(),
     ...stockMap.keys(),
-    ...pendingMap.keys()
+    ...pendingMap.keys(),
+    ...orderMap.keys()
   ])];
 
   if(!sizes.length)sizes.push("Único");
@@ -285,8 +333,10 @@ function getSizeBreakdown(record,store){
       );
       const stock=num(stockMap.get(size)||0);
       const incoming=num(pendingMap.get(size)||0);
-      const raw=Math.max(0,demand-stock-incoming);
+      const currentOrder=num(orderMap.get(size)||0);
+      const raw=Math.max(0,demand-stock-incoming-currentOrder);
       const buy=Math.ceil(raw/configuration.multiple)*configuration.multiple;
+      const excess=Math.max(0,stock+incoming+currentOrder-demand);
 
       return {
         size,
@@ -294,24 +344,27 @@ function getSizeBreakdown(record,store){
         demand,
         stock,
         incoming,
-        buy
+        currentOrder,
+        buy,
+        excess
       };
     })
     .sort((a,b)=>a.size.localeCompare(b.size,"pt-BR",{numeric:true}));
 }
 
 function calcStore(r,store){
-
   const rows=getSizeBreakdown(r,store);
 
   const hist=rows.reduce((sum,item)=>sum+item.historical,0);
   const demand=rows.reduce((sum,item)=>sum+item.demand,0);
   const estoque=rows.reduce((sum,item)=>sum+item.stock,0);
   const aReceber=rows.reduce((sum,item)=>sum+item.incoming,0);
+  const pedidoAtual=rows.reduce((sum,item)=>sum+item.currentOrder,0);
   const buy=rows.reduce((sum,item)=>sum+item.buy,0);
-  const coverage=demand?((estoque+aReceber)/demand):1;
+  const excess=rows.reduce((sum,item)=>sum+item.excess,0);
+  const coverage=demand?((estoque+aReceber+pedidoAtual)/demand):1;
 
-  return {hist,demand,estoque,aReceber,buy,coverage};
+  return {hist,demand,estoque,aReceber,pedidoAtual,buy,excess,coverage};
 }
 
 function calc(r){
@@ -321,20 +374,23 @@ function calc(r){
     return {...r,...x,loja:STORE_NAMES[c.store]};
   }
   const parts=STORES.map(st=>calcStore(r,st));
+  const totalDemand=parts.reduce((a,x)=>a+x.demand,0);
   return {...r,
     hist:parts.reduce((a,x)=>a+x.hist,0),
-    demand:parts.reduce((a,x)=>a+x.demand,0),
+    demand:totalDemand,
     estoque:parts.reduce((a,x)=>a+x.estoque,0),
     aReceber:parts.reduce((a,x)=>a+x.aReceber,0),
+    pedidoAtual:parts.reduce((a,x)=>a+x.pedidoAtual,0),
     buy:parts.reduce((a,x)=>a+x.buy,0),
-    coverage:parts.reduce((a,x)=>a+x.demand,0)?parts.reduce((a,x)=>a+x.estoque+x.aReceber,0)/parts.reduce((a,x)=>a+x.demand,0):1,
+    excess:parts.reduce((a,x)=>a+x.excess,0),
+    coverage:totalDemand?parts.reduce((a,x)=>a+x.estoque+x.aReceber+x.pedidoAtual,0)/totalDemand:1,
     loja:"Todas juntas"
   };
 }
 function computed(){ensureStoreData();return data.map(calc)}
 function persist(){localStorage.setItem("planejamentoComprasData",JSON.stringify(data))}
 function render(){
-  const rows=computed(), demand=rows.reduce((a,r)=>a+r.demand,0), available=rows.reduce((a,r)=>a+num(r.estoque)+num(r.aReceber),0), buy=rows.reduce((a,r)=>a+r.buy,0), productCount=rows.filter(r=>r.buy>0).length;
+  const rows=computed(), demand=rows.reduce((a,r)=>a+r.demand,0), available=rows.reduce((a,r)=>a+num(r.estoque)+num(r.aReceber)+num(r.pedidoAtual),0), buy=rows.reduce((a,r)=>a+r.buy,0), productCount=rows.filter(r=>r.buy>0).length;
   document.querySelector("#kpiDemanda").textContent=nf.format(demand);
   document.querySelector("#kpiDisponivel").textContent=nf.format(available);
   document.querySelector("#kpiCompra").textContent=nf.format(buy);
@@ -346,26 +402,41 @@ function renderTable(rows){
   const filtered=rows.filter(r=>!q||norm([r.codigo,r.descricao,r.linha,r.tipo].join(" ")).includes(q)).sort((a,b)=>b.buy-a.buy);
   document.querySelector("#rowCount").textContent=`${nf.format(filtered.length)} produtos exibidos`;
   document.querySelector("#productRows").innerHTML=filtered.map(r=>{
-    let cls="good",txt="Coberto"; if(r.buy>0&&r.coverage<.5){cls="bad";txt="Risco alto"}else if(r.buy>0){cls="warn";txt="Comprar"}
-    return `<tr><td>${r.codigo}</td><td class="desc" title="${String(r.descricao).replace(/"/g,"&quot;")}">${r.descricao}</td><td>${nf.format(r.hist)}</td><td>${nf.format(r.demand)}</td><td>${nf.format(r.estoque)}</td><td>${nf.format(r.aReceber)}</td><td><b>${nf.format(r.buy)}</b></td><td><span class="badge ${cls}">${txt}</span></td></tr>`
-  }).join("") || `<tr><td colspan="8" class="empty">Nenhum produto encontrado.</td></tr>`;
+    let cls="good",txt="Coberto";
+    if(r.buy>0&&r.coverage<.5){cls="bad";txt="Risco alto"}
+    else if(r.buy>0){cls="warn";txt="Falta comprar"}
+    else if(r.excess>0){cls="good";txt="Coberto / excedente"}
+    return `<tr><td>${r.codigo}</td><td class="desc" title="${String(r.descricao).replace(/"/g,"&quot;")}">${r.descricao}</td><td>${nf.format(r.hist)}</td><td>${nf.format(r.demand)}</td><td>${nf.format(r.estoque)}</td><td>${nf.format(r.aReceber)}</td><td>${nf.format(r.pedidoAtual||0)}</td><td><b>${nf.format(r.buy)}</b></td><td><span class="badge ${cls}">${txt}</span></td></tr>`
+  }).join("") || `<tr><td colspan="9" class="empty">Nenhum produto encontrado.</td></tr>`;
 }
 function renderCharts(rows){
   const top=rows.filter(r=>r.buy>0).sort((a,b)=>b.buy-a.buy).slice(0,10);
   if(chartNecessidade)chartNecessidade.destroy();
-  chartNecessidade=new Chart(document.querySelector("#chartNecessidade"),{type:"bar",data:{labels:top.map(r=>r.descricao.slice(0,28)),datasets:[{label:"Comprar",data:top.map(r=>r.buy),backgroundColor:"#1769e0",borderRadius:7}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
+  chartNecessidade=new Chart(document.querySelector("#chartNecessidade"),{type:"bar",data:{labels:top.map(r=>r.descricao.slice(0,28)),datasets:[{label:"Necessidade adicional",data:top.map(r=>r.buy),backgroundColor:"#1769e0",borderRadius:7}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
   const storeStats=STORES.map(st=>[STORE_NAMES[st],data.reduce((a,r)=>a+num(r[st]),0)]);
   if(chartLojas)chartLojas.destroy();
   chartLojas=new Chart(document.querySelector("#chartLojas"),{type:"doughnut",data:{labels:storeStats.map(x=>x[0]),datasets:[{data:storeStats.map(x=>x[1]),backgroundColor:["#1769e0","#19a974","#f59e0b","#8b5cf6"]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}});
 }
 function renderStoreSummary(){
   const rows=STORES.map(st=>{
-    let hist=0,demand=0,estoque=0,aReceber=0,buy=0;
-    data.forEach(r=>{const x=calcStore(r,st);hist+=x.hist;demand+=x.demand;estoque+=x.estoque;aReceber+=x.aReceber;buy+=x.buy});
-    return {st,hist,demand,estoque,aReceber,buy};
+    let hist=0,demand=0,estoque=0,aReceber=0,pedidoAtual=0,buy=0;
+    data.forEach(r=>{
+      const x=calcStore(r,st);
+      hist+=x.hist; demand+=x.demand; estoque+=x.estoque;
+      aReceber+=x.aReceber; pedidoAtual+=x.pedidoAtual; buy+=x.buy;
+    });
+    return {st,hist,demand,estoque,aReceber,pedidoAtual,buy};
   });
-  const total={st:"todas",hist:rows.reduce((a,x)=>a+x.hist,0),demand:rows.reduce((a,x)=>a+x.demand,0),estoque:rows.reduce((a,x)=>a+x.estoque,0),aReceber:rows.reduce((a,x)=>a+x.aReceber,0),buy:rows.reduce((a,x)=>a+x.buy,0)};
-  document.querySelector("#storeSummaryRows").innerHTML=[...rows,total].map(x=>`<tr><td><b>${x.st==="todas"?"Todas juntas":STORE_NAMES[x.st]}</b></td><td>${nf.format(x.hist)}</td><td>${nf.format(x.demand)}</td><td>${nf.format(x.estoque)}</td><td>${nf.format(x.aReceber)}</td><td><b>${nf.format(x.buy)}</b></td></tr>`).join("");
+  const total={
+    st:"todas",
+    hist:rows.reduce((a,x)=>a+x.hist,0),
+    demand:rows.reduce((a,x)=>a+x.demand,0),
+    estoque:rows.reduce((a,x)=>a+x.estoque,0),
+    aReceber:rows.reduce((a,x)=>a+x.aReceber,0),
+    pedidoAtual:rows.reduce((a,x)=>a+x.pedidoAtual,0),
+    buy:rows.reduce((a,x)=>a+x.buy,0)
+  };
+  document.querySelector("#storeSummaryRows").innerHTML=[...rows,total].map(x=>`<tr><td><b>${x.st==="todas"?"Todas juntas":STORE_NAMES[x.st]}</b></td><td>${nf.format(x.hist)}</td><td>${nf.format(x.demand)}</td><td>${nf.format(x.estoque)}</td><td>${nf.format(x.aReceber)}</td><td>${nf.format(x.pedidoAtual)}</td><td><b>${nf.format(x.buy)}</b></td></tr>`).join("");
 }
 function findColumn(headers,candidates){
   const normalized=headers.map(norm);
@@ -689,13 +760,23 @@ async function importFile(file,type,statusEl){
   }
 }
 function exportCSV(){
-  const rows=computed().sort((a,b)=>b.buy-a.buy), headers=["Loja","Codigo","Descricao","Linha","Tipo","Historico","Demanda projetada","Estoque","A receber","Compra sugerida"];
+  const rows=computed().sort((a,b)=>b.buy-a.buy);
+  const headers=["Loja","Codigo","Descricao","Linha","Tipo","Historico","Demanda projetada","Estoque","A receber","Pedido atual","Necessidade adicional","Excedente"];
   const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
-  const csv=[headers.join(";"),...rows.map(r=>[r.loja,r.codigo,r.descricao,r.linha,r.tipo,r.hist,r.demand,r.estoque,r.aReceber,r.buy].map(esc).join(";"))].join("\n");
-  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="recomendacao_de_compra.csv";a.click();URL.revokeObjectURL(a.href)
+  const csv=[
+    headers.join(";"),
+    ...rows.map(r=>[
+      r.loja,r.codigo,r.descricao,r.linha,r.tipo,r.hist,r.demand,
+      r.estoque,r.aReceber,r.pedidoAtual,r.buy,r.excess
+    ].map(esc).join(";"))
+  ].join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="analise_pedido_atual.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
-
-
 
 function populateSizeFilter(){
   const select=document.querySelector("#sizeFilter");
@@ -819,10 +900,7 @@ function allocateRecommendationBySize(record,store,result,eligibleSizes){
 
 function exportSizeStockCSV(){
   const selectedStore=document.querySelector("#sizeStore")?.value||"todas";
-  const storesToExport=selectedStore==="todas"
-    ? STORES
-    : [selectedStore];
-
+  const storesToExport=selectedStore==="todas"?STORES:[selectedStore];
   const output=[];
 
   storesToExport.forEach(store=>{
@@ -833,6 +911,7 @@ function exportSizeStockCSV(){
           item.demand!==0 ||
           item.stock!==0 ||
           item.incoming!==0 ||
+          item.currentOrder!==0 ||
           item.buy!==0;
 
         if(!contributes)return;
@@ -846,7 +925,9 @@ function exportSizeStockCSV(){
           demandaProjetada:item.demand,
           estoqueAtual:item.stock,
           aReceber:item.incoming,
-          compraSugerida:item.buy
+          pedidoAtual:item.currentOrder,
+          necessidadeAdicional:item.buy,
+          excedente:item.excess
         });
       });
     });
@@ -859,41 +940,23 @@ function exportSizeStockCSV(){
   );
 
   const headers=[
-    "Loja",
-    "Codigo",
-    "Descricao",
-    "Tamanho",
-    "Venda LY",
-    "Demanda Projetada",
-    "Estoque atual",
-    "A receber",
-    "Compra sugerida"
+    "Loja","Codigo","Descricao","Tamanho","Venda LY","Demanda Projetada",
+    "Estoque atual","A receber","Pedido atual","Necessidade adicional","Excedente"
   ];
-
   const escapeValue=value=>`"${String(value??"").replace(/"/g,'""')}"`;
-
   const csv=[
     headers.join(";"),
     ...output.map(row=>[
-      row.loja,
-      row.codigo,
-      row.descricao,
-      row.tamanho,
-      row.vendaLY,
-      row.demandaProjetada,
-      row.estoqueAtual,
-      row.aReceber,
-      row.compraSugerida
+      row.loja,row.codigo,row.descricao,row.tamanho,row.vendaLY,
+      row.demandaProjetada,row.estoqueAtual,row.aReceber,row.pedidoAtual,
+      row.necessidadeAdicional,row.excedente
     ].map(escapeValue).join(";"))
   ].join("\n");
 
-  const blob=new Blob(["\ufeff"+csv],{
-    type:"text/csv;charset=utf-8"
-  });
-
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
   const link=document.createElement("a");
   link.href=URL.createObjectURL(blob);
-  link.download="recomendacao_compra_por_tamanho_real.csv";
+  link.download="analise_pedido_atual_por_tamanho.csv";
   link.click();
   URL.revokeObjectURL(link.href);
 }

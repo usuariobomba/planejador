@@ -1,0 +1,13 @@
+{
+  "codigos_unicos_pedido_atual": 212,
+  "descricoes_via_lista_geral": 138,
+  "descricoes_via_arquivos_de_pedido": 74,
+  "codigos_sem_descricao": [],
+  "conflitos_de_nome_detectados": {
+    "41108503190": [
+      "SANDÁLIA HAVAIANAS BRASIL LOGO - MANGA ROSA",
+      "SANDÁLIA HAVAIANAS NEW BABY BRA - MANGA ROSA"
+    ]
+  },
+  "javascript_valido": true
+}

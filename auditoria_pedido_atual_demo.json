@@ -1,0 +1,12 @@
+{
+  "pedido_atual_por_loja": {
+    "ciane": 20334,
+    "esplanada": 33540,
+    "itape": 9718,
+    "tatui": 16290
+  },
+  "pedido_atual_total": 79882,
+  "linhas_sem_mapeamento": 0,
+  "amostra_sem_mapeamento": [],
+  "logica": "Necessidade adicional = max(0, Demanda - Estoque - A receber - Pedido atual), por loja/produto/tamanho"
+}
